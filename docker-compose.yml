@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  db:
+    build:
+      context: ./infra
+      dockerfile: docker/Dockerfile
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: symbio_db
+      POSTGRES_USER: ayush_admin
+      POSTGRES_PASSWORD: troy_secure_pass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ayush_admin
+      DB_PASSWORD: troy_secure_pass
+      DB_NAME: symbio_db
+      JWT_SECRET: supersecretdefaultkey_change_in_prod
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      KAFKA_BROKER: kafka:29092
+      TWILIO_ACCOUNT_SID: "REPLACE_ME"
+      TWILIO_AUTH_TOKEN: "REPLACE_ME"
+      TWILIO_FROM_NUMBER: "+1234567890"
+    depends_on:
+      - db
+      - redis
+      - kafka
+    restart: unless-stopped
+
+volumes:
+  pgdata:
