@@ -20,8 +20,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  const baseUrl = 'https://symbio.anandayush.in';
-  const wsUrl = 'wss://symbio.anandayush.in/ws';
+  final String baseUrl;
+  final String wsUrl;
+
+  if (kReleaseMode) {
+    // Production (APK/Release Build)
+    baseUrl = 'https://symbio.anandayush.in';
+    wsUrl = 'wss://symbio.anandayush.in/ws';
+  } else {
+    // Development (Debug Mode / Run)
+    baseUrl = 'http://192.168.1.10:8080';
+    wsUrl = 'ws://192.168.1.10:8080/ws';
+  }
 
   final dioClient = DioClient(baseUrl: baseUrl);
   final authRepository = AuthRepository(dioClient: dioClient);
