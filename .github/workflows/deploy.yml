@@ -128,10 +128,10 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Pull latest images
-            docker-compose pull api
+            docker compose pull api
             
             # Restart all services (db, redis, kafka, api)
-            docker-compose up -d
+            docker compose up -d
             
             # Cleanup
             docker image prune -f
