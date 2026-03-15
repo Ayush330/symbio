@@ -44,6 +44,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   api:
+    image: ghcr.io/ayush330/symbio/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile

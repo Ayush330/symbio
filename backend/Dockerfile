@@ -1,13 +1,32 @@
-FROM golang:1.20-alpine
+# Build stage
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN go build -o main ./cmd/server
+# Build the binary with flags for a smaller, static binary
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o main ./cmd/server
+
+# Final stage
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/main .
+
+# Copy Firebase credentials (will be injected by CI if not exists)
+# In production, we'll use a volume or secret injection
+# COPY firebase-adminsdk.json .
 
 EXPOSE 8080
 
