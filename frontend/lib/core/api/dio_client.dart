@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DioClient {
   final Dio dio;
   VoidCallback? onUnauthorized;
+  String? _authToken;
 
   DioClient({required String baseUrl, this.onUnauthorized})
       : dio = Dio(
@@ -21,10 +22,14 @@ class DioClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final prefs = await SharedPreferences.getInstance();
-          final token = prefs.getString('jwt_token');
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
+          // Use cached token if available, otherwise load from prefs
+          if (_authToken == null) {
+            final prefs = await SharedPreferences.getInstance();
+            _authToken = prefs.getString('jwt_token');
+          }
+          
+          if (_authToken != null) {
+            options.headers['Authorization'] = 'Bearer $_authToken';
           }
           return handler.next(options);
         },
@@ -57,6 +62,11 @@ class DioClient {
         },
       ),
     );
+  }
+
+  /// Update the cached token (e.g., after login/logout)
+  void setToken(String? token) {
+    _authToken = token;
   }
 
   Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) {

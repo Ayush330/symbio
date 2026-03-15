@@ -16,6 +16,7 @@ import 'presentation/blocs/friends_bloc.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/friends_screen.dart';
+import 'presentation/screens/animated_splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,11 @@ void main() async {
 
   final dioClient = DioClient(baseUrl: baseUrl);
   final authRepository = AuthRepository(dioClient: dioClient);
+  
+  // Pre-load token from storage into DioClient to avoid initial request delays
+  final initialToken = await authRepository.getToken();
+  dioClient.setToken(initialToken);
+
   final webSocketClient = WebSocketClient(url: wsUrl);
   final commitmentRepository = CommitmentRepository(webSocketClient: webSocketClient);
   final friendsRepository = FriendsRepository(dioClient: dioClient);
@@ -45,6 +51,7 @@ void main() async {
   
   dioClient.onUnauthorized = () {
     authBloc.add(LogoutRequested());
+    dioClient.setToken(null); // Clear token from client immediately
   };
 
   // Initialize Notifications
@@ -57,6 +64,7 @@ void main() async {
     commitmentRepository: commitmentRepository,
     webSocketClient: webSocketClient,
     friendsRepository: friendsRepository,
+    dioClient: dioClient,
   ));
 }
 
@@ -66,6 +74,7 @@ class SymbioApp extends StatelessWidget {
   final CommitmentRepository commitmentRepository;
   final WebSocketClient webSocketClient;
   final FriendsRepository friendsRepository;
+  final DioClient dioClient;
 
   const SymbioApp({
     super.key,
@@ -74,6 +83,7 @@ class SymbioApp extends StatelessWidget {
     required this.commitmentRepository,
     required this.webSocketClient,
     required this.friendsRepository,
+    required this.dioClient,
   });
 
   @override
@@ -99,11 +109,16 @@ class SymbioApp extends StatelessWidget {
         child: BlocListener<AuthBloc, AuthState>(
           listener: (context, state) {
             if (state is Authenticated) {
+              // Update token cache in DioClient whenever state changes
+              dioClient.setToken(state.token);
+              
               FirebaseMessaging.instance.getToken().then((token) {
                 if (token != null) {
                   context.read<AuthRepository>().updateFCMToken(token);
                 }
               });
+            } else if (state is Unauthenticated) {
+              dioClient.setToken(null);
             }
           },
           child: MaterialApp(
@@ -120,8 +135,11 @@ class SymbioApp extends StatelessWidget {
                 }
 
               if (state is AuthInitial) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+                return AnimatedSplashScreen(
+                  onInitializationComplete: () {
+                    // This is handled by BlocBuilder re-emitting state when AuthCheckRequested finishes.
+                    // But we can add a flag here if we want to force wait.
+                  },
                 );
               }
 

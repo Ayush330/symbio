@@ -60,8 +60,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthCheckRequested>((event, emit) async {
       final isLoggedIn = await authRepository.isLoggedIn();
       if (isLoggedIn) {
-        // Here we could fetch the token again or handle it via a stream
-        emit(Authenticated('')); 
+        final token = await authRepository.getToken();
+        emit(Authenticated(token ?? '')); 
       } else {
         emit(Unauthenticated());
       }

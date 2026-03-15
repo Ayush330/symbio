@@ -270,8 +270,15 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     
     final filtered = _searchQuery.isEmpty
         ? entities
-        : entities.where((e) => 
-            ((e['name'] ?? '') as String).toLowerCase().contains(_searchQuery)).toList();
+        : entities.where((e) {
+            final name = ((e['name'] ?? '') as String).toLowerCase();
+            final match = name.contains(_searchQuery);
+            return match;
+          }).toList();
+    
+    if (_searchQuery.isNotEmpty) {
+      debugPrint('Dashboard search: "$_searchQuery", found ${filtered.length} matches in ${entities.length} total.');
+    }
 
     return Column(
       children: [

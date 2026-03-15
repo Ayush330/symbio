@@ -47,6 +47,11 @@ class AuthRepository {
     final prefs = await SharedPreferences.getInstance();
     return prefs.containsKey('jwt_token');
   }
+
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('jwt_token');
+  }
   Future<void> forgotPassword(String email) async {
     try {
       await dioClient.post('/forgot-password', data: {'email': email});

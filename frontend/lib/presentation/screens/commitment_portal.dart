@@ -32,8 +32,13 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
     try {
       final repo = context.read<FriendsRepository>();
       final entities = await repo.getEntities(_type == 'MATERIALISTIC' ? 'MATERIAL' : _type);
-      if (mounted) setState(() => _entities = entities);
-    } catch (_) {}
+      if (mounted) {
+        debugPrint('Loaded ${entities.length} entities for $_type');
+        setState(() => _entities = entities);
+      }
+    } catch (e) {
+      debugPrint('Error loading entities for $_type: $e');
+    }
   }
 
   void _onTypeChanged(String type) {
@@ -144,9 +149,11 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
             Autocomplete<Map<String, dynamic>>(
               optionsBuilder: (TextEditingValue value) {
                 final list = _entities.cast<Map<String, dynamic>>();
-                if (value.text.isEmpty) return list;
-                return list.where((e) =>
-                    (e['name'] as String).toLowerCase().contains(value.text.toLowerCase()));
+                if (value.text.isEmpty) return const Iterable.empty();
+                return list.where((e) {
+                  final name = (e['name'] ?? '') as String;
+                  return name.toLowerCase().contains(value.text.toLowerCase());
+                });
               },
               displayStringForOption: (option) => option['name'] as String,
               fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
@@ -165,6 +172,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
                       if (!match) _selectedEntityId = null;
                     });
                     _entityNameController.text = value;
+                    debugPrint('Search query: $value, isNew: $_isNewEntity');
                   },
                 );
               },
@@ -177,7 +185,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
                     elevation: 12,
                     shadowColor: Colors.black54,
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 260, maxWidth: 320),
+                      constraints: const BoxConstraints(maxHeight: 280, maxWidth: 320),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: ListView.separated(
@@ -204,6 +212,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
                                   _selectedEntityId = option['id'];
                                   _entityNameController.text = option['name'];
                                 });
+                                debugPrint('Selected entity: ${option['name']} (${option['id']})');
                               },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -234,7 +243,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            option['name'],
+                                            option['name'] ?? 'Unknown',
                                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
                                           ),
                                           const SizedBox(height: 2),

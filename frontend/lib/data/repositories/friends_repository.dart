@@ -23,7 +23,11 @@ class FriendsRepository {
 
   Future<List<dynamic>> getEntities(String type) async {
     final response = await dioClient.get('/entities', queryParameters: {'type': type});
-    return response.data as List<dynamic>;
+    var data = response.data;
+    if (data is String) {
+      data = jsonDecode(data);
+    }
+    return data as List<dynamic>;
   }
 
   Future<Map<String, dynamic>> createEntity(String name, String type, double rating) async {
