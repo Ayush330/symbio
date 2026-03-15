@@ -1,10 +1,12 @@
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DioClient {
   final Dio dio;
+  VoidCallback? onUnauthorized;
 
-  DioClient({required String baseUrl})
+  DioClient({required String baseUrl, this.onUnauthorized})
       : dio = Dio(
           BaseOptions(
             baseUrl: baseUrl,
@@ -27,10 +29,30 @@ class DioClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) {
+          // Extract error message from structured JSON if available
+          String? errorMessage;
+          if (e.response?.data is Map) {
+            errorMessage = e.response?.data['error'];
+          }
+
           // Handle global errors like 401 Unauthorized
           if (e.response?.statusCode == 401) {
-            // Log out user or refresh token
+            if (onUnauthorized != null) {
+              onUnauthorized!();
+            }
           }
+
+          // Create a more descriptive exception if we have an error message from backend
+          if (errorMessage != null) {
+            return handler.next(DioException(
+              requestOptions: e.requestOptions,
+              response: e.response,
+              type: e.type,
+              error: errorMessage,
+              message: errorMessage,
+            ));
+          }
+
           return handler.next(e);
         },
       ),

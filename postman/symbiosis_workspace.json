@@ -1,0 +1,215 @@
+{
+	"info": {
+		"name": "Symbiosis Workspace",
+		"description": "Social Integrity Ledger API Suite",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.environment.set(\"access_token\", jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\",\n    \"name\": \"Test User\",\n    \"phone\": \"1234567890\",\n    \"gender\": \"M\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/signup"
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.environment.set(\"access_token\", jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/login"
+					}
+				},
+				{
+					"name": "Update FCM Token",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"fcm-token-test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/user/fcm-token"
+					}
+				}
+			]
+		},
+		{
+			"name": "Symbiosis Ledger",
+			"item": [
+				{
+					"name": "Reciprocity Scores",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/friends"
+					}
+				},
+				{
+					"name": "Friend Activity",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/friends/{{friend_id}}/activity"
+					}
+				}
+			]
+		},
+		{
+			"name": "Connections",
+			"item": [
+				{
+					"name": "Friend Requests",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/friends/requests"
+					}
+				},
+				{
+					"name": "Send Request",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"target_id\": \"{{target_user_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/friends/request"
+					}
+				},
+				{
+					"name": "Look up User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/user/lookup?email=friend@example.com"
+					}
+				}
+			]
+		},
+		{
+			"name": "Entities",
+			"item": [
+				{
+					"name": "List Entities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/entities?type=MATERIAL"
+					}
+				},
+				{
+					"name": "Create Entity",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"New Component\",\n    \"type\": \"MATERIAL\",\n    \"rating\": 50\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{base_url}}/entities"
+					}
+				}
+			]
+		},
+		{
+			"name": "System",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_url}}/health"
+					}
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "friend_id",
+			"value": "placeholder"
+		},
+		{
+			"key": "target_user_id",
+			"value": "placeholder"
+		}
+	]
+}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Ayush330/symbio/backend/internal/auth"
+	"github.com/Ayush330/symbio/backend/internal/transport"
 )
 
 type Handler struct {
@@ -22,27 +23,27 @@ type InviteRequest struct {
 
 func (h *Handler) SendInvite(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	// Basic extract user logic, reusing what was shown before
 	authHeader := r.Header.Get("Authorization")
 	if len(authHeader) < 8 {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	
+
 	token := authHeader[7:] // remove "Bearer "
 	claims, err := auth.ParseJWT(token)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
 	var ok bool
 	if _, ok = claims["sub"].(string); !ok {
-		http.Error(w, "Invalid token sub payload", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Invalid token sub payload")
 		return
 	}
 
@@ -54,22 +55,21 @@ func (h *Handler) SendInvite(w http.ResponseWriter, r *http.Request) {
 
 	var req InviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if req.PhoneNumber == "" {
-		http.Error(w, "Missing phone number", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Missing phone number")
 		return
 	}
 
 	err = h.Twilio.SendInvite(req.PhoneNumber, inviterName)
 	if err != nil {
 		// Log it, but return generic error to client
-		http.Error(w, "Failed to send invite", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Failed to send invite")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"invite_sent"}`))
+	transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "invite_sent"})
 }

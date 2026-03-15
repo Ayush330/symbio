@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Ayush330/symbio/backend/internal/transport"
 	"github.com/google/uuid"
 )
 
@@ -39,13 +40,13 @@ type FriendInfo struct {
 // ListFriends returns all friends of the authenticated user with relationship health
 func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
@@ -64,7 +65,7 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.QueryContext(r.Context(), query, userID)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 	defer rows.Close()
@@ -73,26 +74,25 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var f FriendInfo
 		if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Phone, &f.RelationshipID, &f.RelationshipHealth); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
 		friends = append(friends, f)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(friends)
+	transport.WriteJSON(w, http.StatusOK, friends)
 }
 
 // ListFriendRequests returns pending incoming friend requests
 func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
@@ -109,7 +109,7 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 
 	rows, err := h.db.QueryContext(r.Context(), query, userID)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 	defer rows.Close()
@@ -118,26 +118,25 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 	for rows.Next() {
 		var f FriendInfo
 		if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Phone, &f.RelationshipID, &f.RelationshipHealth); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
 		friends = append(friends, f)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(friends)
+	transport.WriteJSON(w, http.StatusOK, friends)
 }
 
 // SendFriendRequest sends a friend request to another user
 func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	initiatorID, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
@@ -145,7 +144,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		TargetID string `json:"target_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetID == "" {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -162,7 +161,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	`, uid1, uid2, initiatorID)
 
 	if err != nil {
-		http.Error(w, "Failed to send request", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Failed to send request")
 		return
 	}
 
@@ -180,20 +179,19 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		}
 	}()
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	transport.WriteJSON(w, http.StatusCreated, map[string]bool{"success": true})
 }
 
 // AcceptFriendRequest accepts a pending friend request
 func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
@@ -201,7 +199,7 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 		RelID string `json:"rel_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RelID == "" {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -212,13 +210,13 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 	`, req.RelID, userID)
 
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Request not found or unauthorized", http.StatusNotFound)
+		transport.SendError(w, http.StatusNotFound, "Request not found or unauthorized")
 		return
 	}
 
@@ -241,19 +239,19 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 		}
 	}()
 
-	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 // RejectFriendRequest rejects a pending friend request (deletes it)
 func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
@@ -261,7 +259,7 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 		RelID string `json:"rel_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RelID == "" {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -271,29 +269,29 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 	`, req.RelID, userID)
 
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Request not found or unauthorized", http.StatusNotFound)
+		transport.SendError(w, http.StatusNotFound, "Request not found or unauthorized")
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 // LookupUser checks if a user exists by email
 func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	email := r.URL.Query().Get("email")
 	if email == "" {
-		http.Error(w, "email parameter required", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "email parameter required")
 		return
 	}
 
@@ -304,19 +302,17 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 	).Scan(&userID, &name)
 
 	if err == sql.ErrNoRows {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"exists": false,
 		})
 		return
 	}
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"exists":  true,
 		"user_id": userID.String(),
 		"name":    name,
@@ -326,20 +322,20 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 // GetFriendActivity returns recent commitments for a relationship
 func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userID, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
 	// Extract friend ID from path: /friends/{id}/activity
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/friends/"), "/")
 	if len(parts) < 2 || parts[1] != "activity" {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid path")
 		return
 	}
 	friendID := parts[0]
@@ -353,7 +349,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 	var relID uuid.UUID
 	err = h.db.QueryRowContext(r.Context(), query, userID, friendID).Scan(&relID)
 	if err != nil {
-		http.Error(w, "Relationship not found", http.StatusNotFound)
+		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
 	}
 
@@ -373,7 +369,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 
 	rows, err := h.db.QueryContext(r.Context(), activityQuery, relID)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 	defer rows.Close()
@@ -395,15 +391,14 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		var a ActivityItem
 		var createdAt interface{}
 		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.EntityType, &a.Rating, &a.Status, &createdAt, &a.EntityName, &a.InitiatorName); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
 		a.CreatedAt = createdAt.(interface{ String() string }).String()
 		activities = append(activities, a)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(activities)
+	transport.WriteJSON(w, http.StatusOK, activities)
 }
 
 // extractUserID extracts user ID from JWT token in Authorization header

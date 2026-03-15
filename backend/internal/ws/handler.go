@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/websocket"
 	"github.com/Ayush330/symbio/backend/internal/auth"
 	"github.com/Ayush330/symbio/backend/internal/commitments"
+	"github.com/Ayush330/symbio/backend/internal/transport"
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -48,20 +49,20 @@ func (h *Handler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if tokenString == "" {
-		http.Error(w, "Unauthorized: missing token", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized: missing token")
 		return
 	}
 
 	claims, err := auth.ParseJWT(tokenString)
 	if err != nil {
 		log.Printf("WS auth error: %v", err)
-		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized: invalid token")
 		return
 	}
 
 	userID, ok := claims["sub"].(string)
 	if !ok {
-		http.Error(w, "Unauthorized: invalid token payload", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized: invalid token payload")
 		return
 	}
 

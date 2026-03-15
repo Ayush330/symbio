@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -39,11 +40,19 @@ void main() async {
   final commitmentRepository = CommitmentRepository(webSocketClient: webSocketClient);
   final friendsRepository = FriendsRepository(dioClient: dioClient);
 
+  // Instantiate AuthBloc globally so DioClient can trigger logouts on 401
+  final authBloc = AuthBloc(authRepository: authRepository)..add(AuthCheckRequested());
+  
+  dioClient.onUnauthorized = () {
+    authBloc.add(LogoutRequested());
+  };
+
   // Initialize Notifications
   final notificationService = NotificationService(authRepository: authRepository);
   notificationService.initialize(); // Run in background
 
   runApp(SymbioApp(
+    authBloc: authBloc,
     authRepository: authRepository,
     commitmentRepository: commitmentRepository,
     webSocketClient: webSocketClient,
@@ -52,6 +61,7 @@ void main() async {
 }
 
 class SymbioApp extends StatelessWidget {
+  final AuthBloc authBloc;
   final AuthRepository authRepository;
   final CommitmentRepository commitmentRepository;
   final WebSocketClient webSocketClient;
@@ -59,6 +69,7 @@ class SymbioApp extends StatelessWidget {
 
   const SymbioApp({
     super.key,
+    required this.authBloc,
     required this.authRepository,
     required this.commitmentRepository,
     required this.webSocketClient,
@@ -75,8 +86,8 @@ class SymbioApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider(
-            create: (context) => AuthBloc(authRepository: authRepository)..add(AuthCheckRequested()),
+          BlocProvider.value(
+            value: authBloc,
           ),
           BlocProvider(
             create: (context) => DashboardBloc(webSocketClient: webSocketClient),

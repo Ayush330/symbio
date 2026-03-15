@@ -1,0 +1,21 @@
+{
+	"name": "Symbio-EC2",
+	"values": [
+		{
+			"key": "base_url",
+			"value": "https://symbio.anandayush.in",
+			"enabled": true
+		},
+		{
+			"key": "ws_url",
+			"value": "wss://symbio.anandayush.in/ws",
+			"enabled": true
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment"
+}

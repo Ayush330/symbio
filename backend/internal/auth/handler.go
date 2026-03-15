@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/Ayush330/symbio/backend/internal/transport"
 	"github.com/google/uuid"
 )
 
@@ -17,23 +18,23 @@ func NewHandler(s Service) *Handler {
 
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	var req SignupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid input data", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid input data")
 		return
 	}
 
 	user, token, err := h.Service.Signup(r.Context(), req)
 	if err != nil {
 		if err == ErrUserDuplicate {
-			http.Error(w, "Email already in use", http.StatusConflict)
+			transport.SendError(w, http.StatusConflict, "Email already in use")
 			return
 		}
-		http.Error(w, "Internal server error: "+err.Error(), http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -42,30 +43,28 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		User:  *user,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	transport.WriteJSON(w, http.StatusCreated, resp)
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid input data", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid input data")
 		return
 	}
 
 	user, token, err := h.Service.Login(r.Context(), req)
 	if err != nil {
 		if err == ErrInvalidCredentials {
-			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			transport.SendError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -74,87 +73,83 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		User:  *user,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	transport.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) UpdateFCMToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	userIDStr, err := extractUserID(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Invalid user ID")
 		return
 	}
 
 	var req UpdateFCMTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid input data", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid input data")
 		return
 	}
 
 	if req.Token == "" {
-		http.Error(w, "Token is required", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Token is required")
 		return
 	}
 
 	err = h.Service.SaveFCMToken(r.Context(), userID, req.Token)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "FCM token updated successfully"})
+	transport.WriteJSON(w, http.StatusOK, map[string]string{"message": "FCM token updated successfully"})
 }
 
 func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	var req ForgotPasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid input data", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid input data")
 		return
 	}
 
 	if err := h.Service.ForgotPassword(r.Context(), req); err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "If that email is in our system, we've sent reset instructions."})
+	transport.WriteJSON(w, http.StatusOK, map[string]string{"message": "If that email is in our system, we've sent reset instructions."})
 }
 
 func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	var req ResetPasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid input data", http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, "Invalid input data")
 		return
 	}
 
 	if err := h.Service.ResetPassword(r.Context(), req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		transport.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Password reset successful."})
+	transport.WriteJSON(w, http.StatusOK, map[string]string{"message": "Password reset successful."})
 }
