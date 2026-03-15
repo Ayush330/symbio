@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/Ayush330/symbio/backend/internal/auth"
 	"github.com/Ayush330/symbio/backend/internal/notifications"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
