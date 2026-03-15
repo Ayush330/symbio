@@ -9,7 +9,7 @@ staging=0 # Set to 1 if you're testing to avoid hitting request limits
 echo "### Creating dummy certificate for $domains ..."
 docker compose run --rm --entrypoint "\
   sh -c 'mkdir -p /etc/letsencrypt/live/$domains && \
-  openssl req -x509 -nodes -newkey rsa:1024 -days 1\
+  openssl req -x509 -nodes -newkey rsa:4096 -days 1\
     -keyout /etc/letsencrypt/live/$domains/privkey.pem \
     -out /etc/letsencrypt/live/$domains/fullchain.pem \
     -subj \"/CN=localhost\"'" certbot
