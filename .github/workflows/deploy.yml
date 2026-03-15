@@ -8,7 +8,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/backend
+  # Image name must be lowercase
+  IMAGE_NAME: ayush330/symbio/backend
 
 jobs:
   test-and-build:
