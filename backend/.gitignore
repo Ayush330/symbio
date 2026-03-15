@@ -1,1 +1,13 @@
+# Binaries
+main
+server
+*.exe
+*.test
+__debug_bin
+
+# Secrets & Config
 firebase-adminsdk.json
+.env
+
+# Dependencies
+vendor/
