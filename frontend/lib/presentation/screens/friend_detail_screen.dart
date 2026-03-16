@@ -149,36 +149,60 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
 
   void _showCreateFavourDialog() {
     final TextEditingController controller = TextEditingController();
+    bool isSending = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: SymbioTheme.surfaceGlass,
-        title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'e.g., Helped with interview prep',
-            hintStyle: TextStyle(color: Colors.white24),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: SymbioTheme.surfaceGlass,
+          title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
+          content: TextField(
+            controller: controller,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'e.g., Helped with interview prep',
+              hintStyle: TextStyle(color: Colors.white24),
+            ),
+            maxLines: 3,
+            enabled: !isSending,
           ),
-          maxLines: 3,
+          actions: [
+            TextButton(
+              onPressed: isSending ? null : () => Navigator.pop(context),
+              child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
+            ),
+            TextButton(
+              onPressed: isSending
+                  ? null
+                  : () async {
+                      if (controller.text.isEmpty) return;
+
+                      setDialogState(() => isSending = true);
+                      try {
+                        await context.read<FriendsRepository>().createFavour(widget.friendId, controller.text);
+                        if (mounted) {
+                          Navigator.pop(context);
+                          _loadActivity(); // Refresh list
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Favour added to the ledger.')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setDialogState(() => isSending = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                          );
+                        }
+                      }
+                    },
+              child: isSending
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('SEND', style: TextStyle(color: SymbioTheme.primaryBlue)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await context.read<FriendsRepository>().createFavour(widget.friendId, controller.text);
-                Navigator.pop(context);
-                _loadActivity(); // Refresh list
-              }
-            },
-            child: const Text('SEND', style: TextStyle(color: SymbioTheme.primaryBlue)),
-          ),
-        ],
       ),
     );
   }

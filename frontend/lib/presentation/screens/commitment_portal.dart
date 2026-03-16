@@ -129,7 +129,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
       
       // Look up target user ID from email
       final targetUser = await repo.lookupUser(_targetUserController.text);
-      final targetId = targetUser['id']?.toString();
+      final targetId = targetUser['user_id']?.toString();
       
       if (targetId == null) {
         throw 'Recipient not found. Please check the email.';
