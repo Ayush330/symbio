@@ -12,6 +12,8 @@ RUN go mod download
 COPY . .
 
 # Build the binary with flags for a smaller, static binary
+RUN go mod tidy && go mod verify
+
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o main ./cmd/server
 
 # Final stage
