@@ -1,6 +1,6 @@
 module github.com/Ayush330/symbio/backend
 
-go 1.25.5
+go 1.25.0
 
 require (
 	firebase.google.com/go/v4 v4.19.0
