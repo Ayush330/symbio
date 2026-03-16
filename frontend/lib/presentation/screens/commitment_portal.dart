@@ -126,7 +126,16 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
     setState(() => _isLoading = true);
     try {
       final repo = context.read<FriendsRepository>();
-      await repo.createFavour(_targetUserController.text, _descriptionController.text);
+      
+      // Look up target user ID from email
+      final targetUser = await repo.lookupUser(_targetUserController.text);
+      final targetId = targetUser['id']?.toString();
+      
+      if (targetId == null) {
+        throw 'Recipient not found. Please check the email.';
+      }
+
+      await repo.createFavour(targetId, _descriptionController.text);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

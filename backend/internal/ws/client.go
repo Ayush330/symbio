@@ -190,6 +190,10 @@ func (c *Client) handleMessage(raw []byte) {
 		})
 		c.Manager.Broadcast <- broadcastPayload
 
+	case "ping":
+		// Silent acknowledgment to keep connection alive and clean up logs
+		return
+
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
