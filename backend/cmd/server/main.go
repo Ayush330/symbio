@@ -52,6 +52,7 @@ func main() {
 	// 4. Initialize Commitments setup (needed by WS)
 	commRepo := commitments.NewRepository(postgresDB)
 	commService := commitments.NewService(commRepo, redisClient, authRepo, fcmService)
+	commitmentsHandler := commitments.NewHandler(commService)
 
 	// 4. Initialize WebSocket setup
 	wsManager := ws.NewManager()
@@ -103,6 +104,15 @@ func main() {
 			entitiesHandler.ListEntities(w, r)
 		}
 	})
+
+	mux.HandleFunc("/favour/create", commitmentsHandler.CreateFavour)
+	mux.HandleFunc("/favour/config", commitmentsHandler.GetFavourConfig)
+	mux.HandleFunc("/favour/classify", commitmentsHandler.ClassifyFavour)
+
+	// Stats & Graph
+	mux.HandleFunc("/relationship/", friendsHandler.GetRelationshipStats)
+	mux.HandleFunc("/profile/stats", friendsHandler.GetProfileStats)
+	mux.HandleFunc("/activity/graph", friendsHandler.GetActivityGraph)
 
 	// Notifications
 	mux.HandleFunc("/invites", notificationsHandler.SendInvite)

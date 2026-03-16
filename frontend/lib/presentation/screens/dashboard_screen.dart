@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/dashboard_bloc.dart';
 import '../blocs/auth_bloc.dart';
+import '../../data/models/favour_models.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
 import '../widgets/glass_container.dart';
@@ -17,9 +18,8 @@ class SymbiosisDashboard extends StatefulWidget {
 class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProviderStateMixin {
   late AnimationController _scoreGlow;
   late Animation<double> _glowAnim;
-  List<dynamic> _materialEntities = [];
-  List<dynamic> _emotionalEntities = [];
-  String _searchQuery = '';
+  ProfileStats? _stats;
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
@@ -29,7 +29,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     _glowAnim = Tween<double>(begin: 0.06, end: 0.18).animate(
       CurvedAnimation(parent: _scoreGlow, curve: Curves.easeInOut),
     );
-    _loadAllEntities();
+    _loadStats();
   }
 
   @override
@@ -38,18 +38,19 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     super.dispose();
   }
 
-  Future<void> _loadAllEntities() async {
+  Future<void> _loadStats() async {
     try {
       final repo = context.read<FriendsRepository>();
-      final mat = await repo.getEntities('MATERIAL');
-      final emo = await repo.getEntities('EMOTIONAL');
+      final data = await repo.getProfileStats();
       if (mounted) {
         setState(() {
-          _materialEntities = mat;
-          _emotionalEntities = emo;
+          _stats = ProfileStats.fromJson(data);
+          _isLoadingStats = false;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
   }
 
   @override
@@ -122,66 +123,14 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
-                      _buildScoreCircle(state.reciprocityScore),
+                      _buildReciprocityHeart(state.reciprocityScore),
                       const SizedBox(height: 32),
                       Expanded(
-                        child: DefaultTabController(
-                          length: 2,
-                          child: Column(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 24),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.04),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: TabBar(
-                                  dividerColor: Colors.transparent,
-                                  indicator: BoxDecoration(
-                                    color: SymbioTheme.primaryBlue,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  labelColor: Colors.black,
-                                  unselectedLabelColor: Colors.white38,
-                                  labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.5),
-                                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, letterSpacing: 1.5),
-                                  indicatorSize: TabBarIndicatorSize.tab,
-                                  padding: const EdgeInsets.all(4),
-                                  tabs: const [
-                                    Tab(text: 'MATERIALISTIC'),
-                                    Tab(text: 'EMOTIONAL'),
-                                  ],
-                                ),
-                              ),
-                              // Search bar
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-                                child: TextField(
-                                  decoration: InputDecoration(
-                                    hintText: 'Search subgroups...',
-                                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                                    filled: true,
-                                    fillColor: Colors.white.withValues(alpha: 0.04),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                  ),
-                                  onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
-                                ),
-                              ),
-                              Expanded(
-                                child: TabBarView(
-                                  children: [
-                                    _buildEntityGrid('MATERIAL', _materialEntities, state.materialisticEntities),
-                                    _buildEntityGrid('EMOTIONAL', _emotionalEntities, state.emotionalEntities),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        child: _isLoadingStats
+                            ? const Center(child: CircularProgressIndicator())
+                            : _stats == null
+                                ? const Center(child: Text('Failed to load stats', style: TextStyle(color: Colors.white38)))
+                                : _buildStatsContent(),
                       ),
                     ],
                   ),
@@ -194,436 +143,251 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     );
   }
 
-  Widget _buildScoreCircle(double score) {
+  Widget _buildReciprocityHeart(double score) {
+    Color heartColor;
+    String status;
+
+    if (score > 60) {
+      heartColor = const Color(0xFF00E676); // Healthy Green
+      status = 'PROVIDER';
+    } else if (score >= 40) {
+      heartColor = SymbioTheme.primaryBlue; // Balanced Blue
+      status = 'BALANCED';
+    } else {
+      heartColor = const Color(0xFFFF9100); // Indebted Orange/Red
+      status = 'RECEIVER';
+    }
+
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (context, child) {
-        return Container(
-          width: 180,
-          height: 180,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: SymbioTheme.primaryBlue.withValues(alpha: _glowAnim.value),
-                blurRadius: 60,
-                spreadRadius: 10,
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 160,
-                height: 160,
-                child: CircularProgressIndicator(
-                  value: score / 100,
-                  strokeWidth: 6,
-                  backgroundColor: Colors.white.withValues(alpha: 0.06),
-                  color: SymbioTheme.primaryBlue,
-                  strokeCap: StrokeCap.round,
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${score.toInt()}',
-                    style: const TextStyle(
-                      fontSize: 56,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -2,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: SymbioTheme.primaryBlue.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'RECIPROCITY',
-                      style: TextStyle(
-                        fontSize: 8,
-                        letterSpacing: 3,
-                        fontWeight: FontWeight.w900,
-                        color: SymbioTheme.primaryBlue.withValues(alpha: 0.8),
-                      ),
-                    ),
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Glowing Backdrop
+            Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: heartColor.withValues(alpha: _glowAnim.value),
+                    blurRadius: 60,
+                    spreadRadius: 10,
                   ),
                 ],
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEntityGrid(String type, List<dynamic> allEntities, List<dynamic> dashboardEntities) {
-    // Merge: all entities gives us stats, dashboard gives us live data
-    final entities = allEntities.isNotEmpty ? allEntities : dashboardEntities;
-    
-    final filtered = _searchQuery.isEmpty
-        ? entities
-        : entities.where((e) {
-            final name = ((e['name'] ?? '') as String).toLowerCase();
-            final match = name.contains(_searchQuery);
-            return match;
-          }).toList();
-    
-    if (_searchQuery.isNotEmpty) {
-      debugPrint('Dashboard search: "$_searchQuery", found ${filtered.length} matches in ${entities.length} total.');
-    }
-
-    return Column(
-      children: [
-        // Create subgroup button
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-          child: GestureDetector(
-            onTap: () => _showCreateSubgroupDialog(type),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: SymbioTheme.primaryBlue.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-                gradient: LinearGradient(
-                  colors: [
-                    SymbioTheme.primaryBlue.withValues(alpha: 0.08),
-                    SymbioTheme.primaryBlue.withValues(alpha: 0.02),
-                  ],
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            ),
+            // The Heart
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0.8, end: 1.0),
+              duration: const Duration(milliseconds: 1500),
+              curve: Curves.elasticOut,
+              builder: (context, scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  child: ShaderMask(
+                    shaderCallback: (bounds) => LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        heartColor,
+                        heartColor.withValues(alpha: 0.7),
+                      ],
+                    ).createShader(bounds),
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      size: 140,
+                      color: Colors.white,
+                    ),
+                  ),
+                );
+              },
+            ),
+            // Label & Info
+            Positioned(
+              bottom: 20,
+              child: Column(
                 children: [
-                  Icon(Icons.add_circle_outline, size: 18, color: SymbioTheme.primaryBlue),
-                  const SizedBox(width: 8),
-                  Text(
-                    'CREATE SUBGROUP',
-                    style: TextStyle(
-                      fontSize: 11,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w900,
-                      color: SymbioTheme.primaryBlue,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: heartColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: heartColor.withValues(alpha: 0.2)),
+                    ),
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 10,
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w900,
+                        color: heartColor,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        type == 'MATERIAL' ? Icons.account_balance_wallet_outlined : Icons.favorite_outline,
-                        size: 48,
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _searchQuery.isEmpty ? 'No subgroups yet' : 'No matches found',
-                        style: TextStyle(color: Colors.white30, letterSpacing: 1),
-                      ),
-                    ],
+            // Info Button
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                onPressed: () => _showAlgorithmInfo(context),
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white10),
+                    color: Colors.white.withValues(alpha: 0.05),
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final entity = filtered[index];
-                    return _buildEntityCard(entity, type);
-                  },
+                  child: const Icon(Icons.info_outline, size: 14, color: Colors.white38),
                 ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAlgorithmInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F0F1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: const BorderSide(color: Colors.white10),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: SymbioTheme.primaryBlue.withValues(alpha: 0.1),
+              ),
+              child: Icon(Icons.auto_awesome_outlined, color: SymbioTheme.primaryBlue, size: 20),
+            ),
+            const SizedBox(width: 16),
+            const Text('KARMA ALGO', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAlgoRule('💚', 'PROVIDER', 'Score > 60. You are a social legend! You have given more than you have taken. Go ahead, ask for a favour!'),
+            const SizedBox(height: 16),
+            _buildAlgoRule('💙', 'BALANCED', 'Score 40-60. Perfect symbiosis. You are in harmony with your tribe.'),
+            const SizedBox(height: 16),
+            _buildAlgoRule('🟠', 'RECEIVER', 'Score < 40. You are currently indebted. Your social credit is low—time to give back and earn some karma points!'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('GOT IT', style: TextStyle(color: SymbioTheme.primaryBlue, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlgoRule(String emoji, String label, String desc) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(desc, style: const TextStyle(color: Colors.white54, fontSize: 11, height: 1.4)),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildEntityCard(dynamic entity, String type) {
-    final name = entity['name'] ?? 'Unknown';
-    final totalScore = (entity['total_score'] as num?)?.toInt() ?? 0;
-    final usersVotes = (entity['users_votes'] as num?)?.toInt() ?? 0;
-    final avgScore = usersVotes > 0 ? totalScore / usersVotes : 0.0;
-    // Fallback for dashboard entities that have 'reliability'
-    final reliability = (entity['reliability'] as num?)?.toDouble();
-    final displayScore = reliability ?? avgScore;
-
-    final scoreColor = displayScore > 60
-        ? const Color(0xFF00E676)
-        : displayScore > 30
-            ? const Color(0xFFFFD740)
-            : displayScore > 0
-                ? const Color(0xFFFF9100)
-                : Colors.white38;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassContainer(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                // Icon container
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        scoreColor.withValues(alpha: 0.15),
-                        scoreColor.withValues(alpha: 0.05),
-                      ],
-                    ),
-                  ),
-                  child: Icon(
-                    type == 'MATERIAL' ? Icons.monetization_on_outlined : Icons.favorite_outline,
-                    color: scoreColor,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                // Name + type tag
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: -0.2),
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              type,
-                              style: TextStyle(fontSize: 8, color: Colors.white38, letterSpacing: 1.5, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          if (usersVotes > 0) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.people_outline, size: 12, color: Colors.white24),
-                            const SizedBox(width: 3),
-                            Text(
-                              '$usersVotes vote${usersVotes == 1 ? '' : 's'}',
-                              style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.3)),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Score display
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: scoreColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: scoreColor.withValues(alpha: 0.25)),
-                      ),
-                      child: Text(
-                        displayScore.toStringAsFixed(1),
-                        style: TextStyle(
-                          color: scoreColor,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'AVG SCORE',
-                      style: TextStyle(fontSize: 7, letterSpacing: 1.2, color: Colors.white24, fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            // Score bar
-            if (usersVotes > 0) ...[
-              const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: (displayScore / 100).clamp(0.0, 1.0),
-                  backgroundColor: Colors.white.withValues(alpha: 0.06),
-                  color: scoreColor,
-                  minHeight: 3,
-                ),
-              ),
-            ],
-          ],
-        ),
+  Widget _buildStatsContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        children: [
+          _buildStatCard('TOTAL FAVOURS', _stats!.totalFavoursGiven, _stats!.totalFavoursReceived),
+          const SizedBox(height: 24),
+          _buildStatCard('TOTAL POINTS', _stats!.totalPointsGiven, _stats!.totalPointsReceived),
+          const SizedBox(height: 32),
+          _buildInfoMessage(),
+          const SizedBox(height: 40),
+        ],
       ),
     );
   }
 
-  void _showCreateSubgroupDialog(String type) {
-    final nameController = TextEditingController();
-    final ratingController = TextEditingController(text: '50');
+  Widget _buildStatCard(String title, int given, int received) {
+    return GlassContainer(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _buildStatItem('GIVEN', given, Colors.green),
+              const SizedBox(width: 40),
+              _buildStatItem('RECEIVED', received, Colors.red),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black54,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: GlassContainer(
-            borderRadius: 28,
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: SymbioTheme.primaryBlue.withValues(alpha: 0.12),
-                      ),
-                      child: Icon(
-                        type == 'MATERIAL' ? Icons.monetization_on_outlined : Icons.favorite_outline,
-                        color: SymbioTheme.primaryBlue,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('CREATE SUBGROUP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                        Text(type.toLowerCase(), style: TextStyle(fontSize: 11, color: Colors.white38, letterSpacing: 1)),
-                      ],
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close, color: Colors.white38, size: 20),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 28),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    hintText: 'Subgroup name...',
-                    prefixIcon: Icon(Icons.label_outline, size: 20),
-                  ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 20),
-                const Text('INITIAL RATING', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Colors.white38)),
-                const SizedBox(height: 8),
-                StatefulBuilder(
-                  builder: (context, setSliderState) {
-                    double rating = double.tryParse(ratingController.text) ?? 50;
-                    return Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('1', style: TextStyle(fontSize: 11, color: Colors.white24)),
-                            Text(
-                              '${rating.toInt()}',
-                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: SymbioTheme.primaryBlue),
-                            ),
-                            Text('100', style: TextStyle(fontSize: 11, color: Colors.white24)),
-                          ],
-                        ),
-                        SliderTheme(
-                          data: SliderThemeData(
-                            trackHeight: 4,
-                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                          ),
-                          child: Slider(
-                            value: rating,
-                            min: 1,
-                            max: 100,
-                            activeColor: SymbioTheme.primaryBlue,
-                            inactiveColor: Colors.white10,
-                            onChanged: (v) {
-                              setSliderState(() {
-                                ratingController.text = v.toStringAsFixed(0);
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (nameController.text.trim().isEmpty) return;
-                      final name = nameController.text.trim();
-                      final rating = double.tryParse(ratingController.text) ?? 50.0;
-                      
-                      try {
-                        await context.read<FriendsRepository>().createEntity(name, type, rating);
-                        if (mounted) {
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Subgroup "$name" created!'),
-                              backgroundColor: SymbioTheme.primaryBlue.withValues(alpha: 0.9),
-                            ),
-                          );
-                          _loadAllEntities();
-                        }
-                      } catch (e) {
-                         if (mounted) {
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
-                           );
-                         }
-                      }
-                    },
-                    child: const Text('CREATE'),
-                  ),
-                ),
-              ],
+  Widget _buildStatItem(String label, int value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, color: color.withValues(alpha: 0.5), fontWeight: FontWeight.bold, letterSpacing: 1)),
+        const SizedBox(height: 4),
+        Text(
+          value.toString(),
+          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoMessage() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: SymbioTheme.primaryBlue.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: SymbioTheme.primaryBlue.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, color: SymbioTheme.primaryBlue, size: 20),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Your reciprocity score is a reflection of your social integrity across all connections.',
+              style: TextStyle(fontSize: 12, color: Colors.white54, height: 1.4),
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 

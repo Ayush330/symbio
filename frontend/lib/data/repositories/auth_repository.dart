@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/api/dio_client.dart';
 
@@ -17,6 +18,7 @@ class AuthRepository {
       if (token != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
+        await fetchAndCacheFavourConfig();
         return token;
       }
       return null;
@@ -78,5 +80,25 @@ class AuthRepository {
       // Background task, maybe just log it
       print('FCM Token Update error: $e');
     }
+  }
+
+  Future<void> fetchAndCacheFavourConfig() async {
+    try {
+      final response = await dioClient.get('/favour/config');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('favour_config', jsonEncode(response.data));
+    } catch (e) {
+      print('Favour config update error: $e');
+    }
+  }
+
+  Future<Map<String, int>> getFavourConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    final configStr = prefs.getString('favour_config');
+    if (configStr != null) {
+      final Map<String, dynamic> decoded = jsonDecode(configStr);
+      return decoded.map((key, value) => MapEntry(key, value as int));
+    }
+    return {};
   }
 }

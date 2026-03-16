@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../blocs/friends_bloc.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/symbio_button.dart';
 import 'friend_detail_screen.dart';
 import 'invite_screen.dart';
 
@@ -55,7 +56,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           context,
           MaterialPageRoute(builder: (_) => const InviteScreen()),
         ),
-        backgroundColor: SymbioTheme.primaryBlue,
+        backgroundColor: SymbioTheme.accentCyan,
         child: const Icon(Icons.person_add_alt_1, color: Colors.black),
       ),
       body: Stack(
@@ -156,14 +157,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 40),
             SizedBox(
-              width: 200,
-              child: ElevatedButton.icon(
+              width: 220,
+              child: SymbioButton(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const InviteScreen()),
                 ),
-                icon: const Icon(Icons.send_rounded, size: 18),
-                label: const Text('INVITE SOMEONE'),
+                icon: Icons.send_rounded,
+                label: 'INVITE SOMEONE',
               ),
             ),
           ],
@@ -223,8 +224,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               height: 48,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.accentCyan.withOpacity(0.1),
-                border: Border.all(color: SymbioTheme.accentCyan.withOpacity(0.3)),
+                color: SymbioTheme.accentCyan.withValues(alpha: 0.1),
+                border: Border.all(color: SymbioTheme.accentCyan.withValues(alpha: 0.3)),
               ),
               child: Center(
                 child: Text(
@@ -254,7 +255,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     'Wants to connect',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha: 0.5),
                     ),
                   ),
                 ],
@@ -306,24 +307,11 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           padding: const EdgeInsets.all(20),
           child: Row(
             children: [
-              // Avatar with health ring
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: healthColor, width: 2.5),
-                ),
-                child: Center(
-                  child: Text(
-                    (friend['name'] ?? '?')[0].toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: healthColor,
-                    ),
-                  ),
-                ),
+              // Heart icon with health color
+              Icon(
+                Icons.favorite,
+                color: healthColor,
+                size: 32,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -342,7 +330,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       friend['email'] ?? '',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                       ),
                     ),
                   ],
@@ -352,9 +340,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: healthColor.withOpacity(0.1),
+                  color: healthColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: healthColor.withOpacity(0.3)),
+                  border: Border.all(color: healthColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   health.toStringAsFixed(1),

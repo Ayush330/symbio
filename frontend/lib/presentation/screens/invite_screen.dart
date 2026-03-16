@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/symbio_button.dart';
 
 class InviteScreen extends StatefulWidget {
   const InviteScreen({super.key});
@@ -93,7 +94,7 @@ class _InviteScreenState extends State<InviteScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.accentCyan.withOpacity(0.05),
+                color: SymbioTheme.accentCyan.withValues(alpha: 0.05),
               ),
             ),
           ),
@@ -111,7 +112,7 @@ class _InviteScreenState extends State<InviteScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Search for someone on Symbio or invite them to join you.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.4), height: 1.5),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4), height: 1.5),
                   ),
                   const SizedBox(height: 40),
                   GlassContainer(
@@ -128,18 +129,11 @@ class _InviteScreenState extends State<InviteScreen> {
                           onSubmitted: (_) => _handleLookup(),
                         ),
                         const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _handleLookup,
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
-                                  )
-                                : const Text('SEARCH'),
-                          ),
+                        SymbioButton(
+                          onPressed: _handleLookup,
+                          isLoading: _isLoading,
+                          label: 'SEARCH',
+                          icon: Icons.search_rounded,
                         ),
                       ],
                     ),
@@ -168,8 +162,8 @@ class _InviteScreenState extends State<InviteScreen> {
               height: 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00E676).withOpacity(0.1),
-                border: Border.all(color: const Color(0xFF00E676).withOpacity(0.3)),
+                color: const Color(0xFF00E676).withValues(alpha: 0.1),
+                border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.3)),
               ),
               child: const Icon(Icons.check_circle_outline, color: Color(0xFF00E676), size: 32),
             ),
@@ -185,21 +179,15 @@ class _InviteScreenState extends State<InviteScreen> {
             const SizedBox(height: 8),
             Text(
               'Send them a friend request to start building your trust ledger together.',
-              style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4)),
+              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isLoading 
-                    ? null 
-                    : () => _sendFriendRequest(_lookupResult!['user_id']),
-                icon: const Icon(Icons.person_add, size: 18),
-                label: _isLoading 
-                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                    : const Text('SEND FRIEND REQUEST'),
-              ),
+            SymbioButton(
+              onPressed: () => _sendFriendRequest(_lookupResult!['user_id']),
+              isLoading: _isLoading,
+              icon: Icons.person_add,
+              label: 'SEND FRIEND REQUEST',
             ),
           ],
         ),
@@ -215,8 +203,8 @@ class _InviteScreenState extends State<InviteScreen> {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: SymbioTheme.primaryBlue.withOpacity(0.1),
-              border: Border.all(color: SymbioTheme.primaryBlue.withOpacity(0.3)),
+              color: SymbioTheme.primaryBlue.withValues(alpha: 0.1),
+              border: Border.all(color: SymbioTheme.primaryBlue.withValues(alpha: 0.3)),
             ),
             child: Icon(Icons.person_add_alt_1, color: SymbioTheme.primaryBlue, size: 32),
           ),
@@ -229,17 +217,14 @@ class _InviteScreenState extends State<InviteScreen> {
           const SizedBox(height: 8),
           Text(
             'Share an invite link so they can join you.',
-            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4)),
+            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _shareInvite,
-              icon: const Icon(Icons.share_rounded, size: 18),
-              label: const Text('SHARE INVITE'),
-            ),
+          SymbioButton(
+            onPressed: _shareInvite,
+            icon: Icons.share_rounded,
+            label: 'SHARE INVITE',
           ),
         ],
       ),

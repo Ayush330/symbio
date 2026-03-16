@@ -27,8 +27,11 @@ type Commitment struct {
 	RelID       uuid.UUID        `json:"rel_id"`
 	InitiatorID uuid.UUID        `json:"initiator_id"`
 	TargetID    uuid.UUID        `json:"target_id"`
-	EntityID    uuid.UUID        `json:"entity_id"`
-	EntityType  EntityType       `json:"entity_type"`
+	EntityID    *uuid.UUID       `json:"entity_id,omitempty"`
+	EntityType  EntityType       `json:"entity_type,omitempty"`
+	Text        string           `json:"text,omitempty"`
+	Category    string           `json:"category,omitempty"`
+	Points      int              `json:"points"`
 	Rating      int              `json:"rating"`
 	Status      CommitmentStatus `json:"status"`
 	CreatedAt   time.Time        `json:"created_at"`
@@ -60,10 +63,11 @@ type OutboxEvent struct {
 // Request payloads
 type RequestCommitmentReq struct {
 	TargetUserID string     `json:"target_user_id"`
-	EntityID     string     `json:"entity_id"`
-	EntityName   string     `json:"entity_name"` // Used if EntityID is empty
-	EntityType   EntityType `json:"entity_type"`
-	Rating       int        `json:"rating"` // 1-100
+	EntityID     string     `json:"entity_id,omitempty"`
+	EntityName   string     `json:"entity_name,omitempty"` // Used if EntityID is empty
+	EntityType   EntityType `json:"entity_type,omitempty"`
+	Rating       int        `json:"rating,omitempty"` // 1-100
+	Text         string     `json:"text,omitempty"`
 }
 
 type AcceptCommitmentReq struct {
@@ -120,23 +124,23 @@ func (r *postgresRepository) GetActiveRelationship(ctx context.Context, tx *sql.
 
 func (r *postgresRepository) CreateCommitment(ctx context.Context, tx *sql.Tx, c *Commitment) error {
 	query := `
-		INSERT INTO commitments (rel_id, initiator_id, target_id, entity_id, entity_type, rating, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO commitments (rel_id, initiator_id, target_id, entity_id, entity_type, text, category, points, rating, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, created_at
 	`
 	return tx.QueryRowContext(ctx, query,
-		c.RelID, c.InitiatorID, c.TargetID, c.EntityID, c.EntityType, c.Rating, c.Status,
+		c.RelID, c.InitiatorID, c.TargetID, c.EntityID, c.EntityType, c.Text, c.Category, c.Points, c.Rating, c.Status,
 	).Scan(&c.ID, &c.CreatedAt)
 }
 
 func (r *postgresRepository) GetCommitment(ctx context.Context, id uuid.UUID) (*Commitment, error) {
 	query := `
-		SELECT id, rel_id, initiator_id, target_id, entity_id, entity_type, rating, status, created_at
+		SELECT id, rel_id, initiator_id, target_id, entity_id, entity_type, text, category, points, rating, status, created_at
 		FROM commitments WHERE id = $1
 	`
 	c := &Commitment{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&c.ID, &c.RelID, &c.InitiatorID, &c.TargetID, &c.EntityID, &c.EntityType, &c.Rating, &c.Status, &c.CreatedAt,
+		&c.ID, &c.RelID, &c.InitiatorID, &c.TargetID, &c.EntityID, &c.EntityType, &c.Text, &c.Category, &c.Points, &c.Rating, &c.Status, &c.CreatedAt,
 	)
 	return c, err
 }

@@ -46,8 +46,11 @@ CREATE TABLE commitments (
     rel_id UUID REFERENCES user_relationships(id),
     initiator_id UUID REFERENCES users(id),
     target_id UUID REFERENCES users(id),
-    entity_id UUID NOT NULL, -- Links to either materialistic or emotional
-    entity_type VARCHAR(20) NOT NULL, -- 'MATERIAL' or 'EMOTIONAL'
+    entity_id UUID, -- Links to either materialistic or emotional (Optional now)
+    entity_type VARCHAR(20), -- 'MATERIAL' or 'EMOTIONAL' (Optional now)
+    text TEXT,
+    category VARCHAR(20), -- emotional, money, help, health, other
+    points INT,
     rating INT CHECK (rating >= 1 AND rating <= 100),
     status VARCHAR(20) DEFAULT 'PENDING', -- PENDING, ACKNOWLEDGED, FLAKED
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

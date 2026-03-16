@@ -126,3 +126,70 @@ func (h *Handler) DenyCommitment(w http.ResponseWriter, r *http.Request) {
 
 	transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "denied"})
 }
+func (h *Handler) CreateFavour(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	initiatorID, err := extractUserID(r)
+	if err != nil {
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req RequestCommitmentReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	if req.Text == "" {
+		transport.SendError(w, http.StatusBadRequest, "Favour description is required")
+		return
+	}
+
+	favour, err := h.Service.CreateFavour(r.Context(), initiatorID, req)
+	if err != nil {
+		transport.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	transport.WriteJSON(w, http.StatusCreated, favour)
+}
+
+func (h *Handler) GetFavourConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	config := h.Service.GetFavourConfig()
+	transport.WriteJSON(w, http.StatusOK, config)
+}
+
+func (h *Handler) ClassifyFavour(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	if req.Text == "" {
+		transport.SendError(w, http.StatusBadRequest, "Favour description is required")
+		return
+	}
+
+	cat, pts := ClassifyFavour(req.Text)
+	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"category": cat,
+		"points":   pts,
+	})
+}

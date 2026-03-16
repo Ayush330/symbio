@@ -14,65 +14,123 @@ class CommitmentPortal extends StatefulWidget {
 
 class _CommitmentPortalState extends State<CommitmentPortal> {
   final _targetUserController = TextEditingController();
-  final _entityNameController = TextEditingController();
-  double _rating = 50;
-  String _type = 'MATERIALISTIC';
+  final _descriptionController = TextEditingController();
   bool _isLoading = false;
-  bool _isNewEntity = true;
-  String? _selectedEntityId;
-  List<dynamic> _entities = [];
 
   @override
   void initState() {
     super.initState();
-    _loadEntities();
   }
 
-  Future<void> _loadEntities() async {
+  void _handleClassification() async {
+    if (_targetUserController.text.isEmpty || _descriptionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
     try {
       final repo = context.read<FriendsRepository>();
-      final entities = await repo.getEntities(_type == 'MATERIALISTIC' ? 'MATERIAL' : _type);
+      final classification = await repo.classifyFavour(_descriptionController.text);
+      
       if (mounted) {
-        debugPrint('Loaded ${entities.length} entities for $_type');
-        setState(() => _entities = entities);
+        _showConfirmationDialog(classification['category'], classification['points']);
       }
     } catch (e) {
-      debugPrint('Error loading entities for $_type: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _onTypeChanged(String type) {
-    setState(() {
-      _type = type;
-      _selectedEntityId = null;
-      _isNewEntity = true;
-      _entityNameController.clear();
-    });
-    _loadEntities();
+  void _showConfirmationDialog(String category, int points) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SymbioTheme.surfaceGlass,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: SymbioTheme.primaryBlue.withOpacity(0.2)),
+        ),
+        title: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: SymbioTheme.primaryBlue.withOpacity(0.1),
+              ),
+              child: Icon(Icons.psychology_outlined, color: SymbioTheme.primaryBlue, size: 32),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'CLASSIFICATION',
+              style: TextStyle(color: Colors.white, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              category.toUpperCase(),
+              style: TextStyle(
+                color: SymbioTheme.primaryBlue,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '+$points POINTS',
+              style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '“${_descriptionController.text}”',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white38, fontSize: 13, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('EDIT', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _submitFavour();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: SymbioTheme.primaryBlue,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('CONFIRM'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _handleSubmit() async {
+  void _submitFavour() async {
     setState(() => _isLoading = true);
     try {
-      if (_isNewEntity) {
-        await context.read<CommitmentRepository>().requestCommitment(
-              targetUserId: _targetUserController.text,
-              entityType: _type,
-              rating: _rating.toInt(),
-              entityName: _entityNameController.text,
-            );
-      } else {
-        await context.read<CommitmentRepository>().requestCommitment(
-              targetUserId: _targetUserController.text,
-              entityType: _type,
-              rating: 0,
-              entityId: _selectedEntityId,
-            );
-      }
+      final repo = context.read<FriendsRepository>();
+      await repo.createFavour(_targetUserController.text, _descriptionController.text);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proposal sent to the ledger.')),
+          const SnackBar(content: Text('Favour added to the ledger.')),
         );
       }
     } catch (e) {
@@ -91,7 +149,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
     return GlassContainer(
       borderRadius: 32,
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.85,
+        height: MediaQuery.of(context).size.height * 0.7,
         padding: const EdgeInsets.all(32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +161,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PROPOSE EVENT',
+                      'LOG FAVOUR',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
@@ -111,7 +169,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
                       ),
                     ),
                     Text(
-                      'Initiate the double-handshake',
+                      'Record a social contribution',
                       style: TextStyle(fontSize: 12, color: Colors.white38),
                     ),
                   ],
@@ -133,227 +191,32 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text('NATURE OF SYMBIOSIS', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Colors.white38)),
+            const Text('WHAT HAPPENED?', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Colors.white38)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildTypeChip('MATERIALISTIC'),
-                const SizedBox(width: 12),
-                _buildTypeChip('EMOTIONAL'),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text('ENTITY', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Colors.white38)),
-            const SizedBox(height: 12),
-            // Autocomplete entity field
-            Autocomplete<Map<String, dynamic>>(
-              optionsBuilder: (TextEditingValue value) {
-                final list = _entities.cast<Map<String, dynamic>>();
-                if (value.text.isEmpty) return const Iterable.empty();
-                return list.where((e) {
-                  final name = (e['name'] ?? '') as String;
-                  return name.toLowerCase().contains(value.text.toLowerCase());
-                });
-              },
-              displayStringForOption: (option) => option['name'] as String,
-              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: const InputDecoration(
-                    hintText: 'Search or create a subgroup...',
-                    prefixIcon: Icon(Icons.hub_outlined, size: 20),
+            Expanded(
+              child: TextField(
+                controller: _descriptionController,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  hintText: 'e.g., Helped Rahul with interview prep',
+                  prefixIcon: Padding(
+                    padding: EdgeInsets.only(bottom: 120),
+                    child: Icon(Icons.description_outlined, size: 20),
                   ),
-                  onChanged: (value) {
-                    final match = _entities.any((e) =>
-                        (e['name'] as String).toLowerCase() == value.toLowerCase());
-                    setState(() {
-                      _isNewEntity = !match;
-                      if (!match) _selectedEntityId = null;
-                    });
-                    _entityNameController.text = value;
-                    debugPrint('Search query: $value, isNew: $_isNewEntity');
-                  },
-                );
-              },
-              optionsViewBuilder: (context, onSelected, options) {
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    color: const Color(0xFF1A1A2E),
-                    borderRadius: BorderRadius.circular(16),
-                    elevation: 12,
-                    shadowColor: Colors.black54,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 280, maxWidth: 320),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: ListView.separated(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shrinkWrap: true,
-                          itemCount: options.length,
-                          separatorBuilder: (_, __) => Divider(height: 1, color: Colors.white.withValues(alpha: 0.05)),
-                          itemBuilder: (context, index) {
-                            final option = options.elementAt(index);
-                            final votes = (option['users_votes'] as num?)?.toInt() ?? 0;
-                            final totalScore = (option['total_score'] as num?)?.toInt() ?? 0;
-                            final avg = votes > 0 ? totalScore / votes : 0.0;
-                            final scoreColor = avg > 60
-                                ? const Color(0xFF00E676)
-                                : avg > 30
-                                    ? const Color(0xFFFFD740)
-                                    : const Color(0xFFFF9100);
-                            
-                            return InkWell(
-                              onTap: () {
-                                onSelected(option);
-                                setState(() {
-                                  _isNewEntity = false;
-                                  _selectedEntityId = option['id'];
-                                  _entityNameController.text = option['name'];
-                                });
-                                debugPrint('Selected entity: ${option['name']} (${option['id']})');
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                child: Row(
-                                  children: [
-                                    // Score badge
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        color: scoreColor.withValues(alpha: 0.12),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          avg.toStringAsFixed(0),
-                                          style: TextStyle(
-                                            color: scoreColor,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            option['name'] ?? 'Unknown',
-                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              Text(
-                                                'Avg: ${avg.toStringAsFixed(1)}',
-                                                style: TextStyle(color: scoreColor.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w600),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Icon(Icons.people_outline, size: 11, color: Colors.white24),
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                '$votes vote${votes == 1 ? '' : 's'}',
-                                                style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(Icons.chevron_right, size: 16, color: Colors.white24),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            // Show rating only for NEW entities
-            if (_isNewEntity) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('INTENSITY', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Colors.white38)),
-                  Text('${_rating.toInt()}', style: TextStyle(color: SymbioTheme.primaryBlue, fontWeight: FontWeight.w900, fontSize: 18)),
-                ],
-              ),
-              Slider(
-                value: _rating,
-                min: 1,
-                max: 100,
-                activeColor: SymbioTheme.primaryBlue,
-                inactiveColor: Colors.white10,
-                onChanged: (val) => setState(() => _rating = val),
-              ),
-            ] else ...[
-              GlassContainer(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle_outline, color: const Color(0xFF00E676), size: 18),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Existing entity selected — no rating needed.',
-                        style: TextStyle(fontSize: 12, color: Colors.white38),
-                      ),
-                    ),
-                  ],
                 ),
               ),
-            ],
-            const Spacer(),
+            ),
+            const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _isLoading ? null : _handleSubmit,
+              onPressed: _isLoading ? null : _handleClassification,
               child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.black)
-                  : const Text('EXECUTE PROPOSAL'),
+                  : const Text('REVIEW PROPOSAL'),
             ),
             const SizedBox(height: 24),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypeChip(String type) {
-    bool isSelected = _type == type;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _onTypeChanged(type),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: isSelected ? SymbioTheme.primaryBlue : Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? SymbioTheme.primaryBlue : Colors.white10,
-              width: 1.5,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              type,
-              style: TextStyle(
-                color: isSelected ? Colors.black : Colors.white70,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
         ),
       ),
     );

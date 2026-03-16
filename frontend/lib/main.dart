@@ -16,6 +16,7 @@ import 'presentation/blocs/friends_bloc.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/friends_screen.dart';
+import 'presentation/screens/activity_tab.dart';
 import 'presentation/screens/animated_splash_screen.dart';
 
 void main() async {
@@ -167,6 +168,7 @@ class _SymbioHomeState extends State<SymbioHome> {
   final _screens = const [
     SymbiosisDashboard(),
     FriendsScreen(),
+    ActivityTab(),
   ];
 
   @override
@@ -194,12 +196,17 @@ class _SymbioHomeState extends State<SymbioHome> {
             BottomNavigationBarItem(
               icon: Icon(Icons.dashboard_outlined),
               activeIcon: Icon(Icons.dashboard),
-              label: 'DASHBOARD',
+              label: 'PROFILE',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.people_outline),
               activeIcon: Icon(Icons.people),
               label: 'FRIENDS',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: 'ACTIVITY',
             ),
           ],
         ),

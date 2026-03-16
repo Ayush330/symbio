@@ -3,6 +3,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../widgets/glass_container.dart';
+import 'favour_detail_screen.dart';
 
 class FriendDetailScreen extends StatefulWidget {
   final String friendId;
@@ -99,58 +100,85 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
 
   Widget _buildHealthGauge() {
     return Center(
-      child: Container(
-        width: 160,
-        height: 160,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: _healthColor.withOpacity(0.15),
-              blurRadius: 40,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 140,
-              height: 140,
-              child: CircularProgressIndicator(
-                value: (widget.health.abs() / 100).clamp(0.0, 1.0),
-                strokeWidth: 6,
-                backgroundColor: Colors.white10,
-                color: _healthColor,
-                strokeCap: StrokeCap.round,
+      child: Column(
+        children: [
+          Icon(
+            Icons.favorite,
+            color: _healthColor,
+            size: 80,
+            shadows: [
+              Shadow(
+                color: _healthColor.withOpacity(0.5),
+                blurRadius: 40,
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            widget.health.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              color: _healthColor,
+              letterSpacing: -2,
             ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.health.toStringAsFixed(1),
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    color: _healthColor,
-                    letterSpacing: -1,
-                  ),
-                ),
-                Text(
-                  'HEALTH',
-                  style: TextStyle(
-                    fontSize: 10,
-                    letterSpacing: 3,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white.withOpacity(0.3),
-                  ),
-                ),
-              ],
+          ),
+          Text(
+            'CONNECTION SCORE',
+            style: TextStyle(
+              fontSize: 12,
+              letterSpacing: 4,
+              fontWeight: FontWeight.bold,
+              color: Colors.white.withOpacity(0.4),
             ),
-          ],
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: () => _showCreateFavourDialog(),
+            icon: const Icon(Icons.add, color: Colors.black),
+            label: const Text('CREATE FAVOUR'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: SymbioTheme.primaryBlue,
+              foregroundColor: Colors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateFavourDialog() {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: SymbioTheme.surfaceGlass,
+        title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'e.g., Helped with interview prep',
+            hintStyle: TextStyle(color: Colors.white24),
+          ),
+          maxLines: 3,
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                await context.read<FriendsRepository>().createFavour(widget.friendId, controller.text);
+                Navigator.pop(context);
+                _loadActivity(); // Refresh list
+              }
+            },
+            child: const Text('SEND', style: TextStyle(color: SymbioTheme.primaryBlue)),
+          ),
+        ],
       ),
     );
   }
@@ -182,98 +210,52 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
       physics: const BouncingScrollPhysics(),
       itemCount: _activities.length,
       itemBuilder: (context, index) {
-        final activity = _activities[index];
-        final isLast = index == _activities.length - 1;
+        final f = _activities[index];
+        final bool isGiven = f['initiator_id'] != widget.friendId;
+        final Color baseColor = isGiven ? Colors.green : Colors.red;
+        final int points = f['points'] ?? 10;
+        final double opacity = (points / 50).clamp(0.3, 1.0);
 
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Timeline line + dot
-              SizedBox(
-                width: 32,
-                child: Column(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _statusColor(activity['status'] ?? ''),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _statusColor(activity['status'] ?? '').withOpacity(0.4),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!isLast)
-                      Expanded(
-                        child: Container(
-                          width: 1.5,
-                          color: Colors.white10,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Activity card
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: GlassContainer(
-                    padding: const EdgeInsets.all(16),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => FavourDetailScreen(favour: f)),
+            ),
+            child: GlassContainer(
+              padding: const EdgeInsets.all(16),
+              borderColor: baseColor.withOpacity(opacity),
+              child: Row(
+                children: [
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                activity['entity_name'] ?? 'Unknown',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            _buildStatusChip(activity['status'] ?? ''),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              activity['entity_type'] == 'MATERIAL'
-                                  ? Icons.monetization_on_outlined
-                                  : Icons.favorite_outline,
-                              size: 14,
-                              color: Colors.white30,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              activity['entity_type'] ?? '',
-                              style: TextStyle(fontSize: 11, color: Colors.white30, letterSpacing: 1),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'Rating: ${activity['rating'] ?? 0}',
-                              style: TextStyle(fontSize: 12, color: SymbioTheme.primaryBlue.withOpacity(0.7)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
                         Text(
-                          'by ${activity['initiator_name'] ?? 'Unknown'}',
-                          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.2)),
+                          f['text'] ?? 'Legacy Commitment',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${f['category']?.toUpperCase() ?? 'OTHER'} • ${f['created_at'].toString().substring(0, 10)}',
+                          style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4), letterSpacing: 1),
                         ),
                       ],
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${isGiven ? "+" : "-"}$points',
+                    style: TextStyle(
+                      color: baseColor.withOpacity(opacity),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },

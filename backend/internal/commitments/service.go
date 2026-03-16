@@ -22,6 +22,8 @@ type Service interface {
 	DenyCommitment(ctx context.Context, userID uuid.UUID, req DenyCommitmentReq) (*Commitment, error)
 	BeginTx(ctx context.Context) (*sql.Tx, error)
 	UpdateEntityRating(ctx context.Context, tx *sql.Tx, entityType EntityType, entityID uuid.UUID, rating int) (float64, error)
+	CreateFavour(ctx context.Context, initiatorID uuid.UUID, req RequestCommitmentReq) (*Commitment, error)
+	GetFavourConfig() map[string]int
 }
 
 type commitmentsService struct {
@@ -88,10 +90,17 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		RelID:       relID,
 		InitiatorID: initiatorID,
 		TargetID:    targetUID,
-		EntityID:    entityID,
+		EntityID:    &entityID,
 		EntityType:  req.EntityType,
 		Rating:      req.Rating,
 		Status:      StatusPending,
+	}
+
+	if req.Text != "" {
+		commitment.Text = req.Text
+		cat, pts := ClassifyFavour(req.Text)
+		commitment.Category = cat
+		commitment.Points = pts
 	}
 
 	if err := s.repo.CreateCommitment(ctx, tx, commitment); err != nil {
@@ -173,16 +182,19 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 
 	// Calculate and update the average score for the entity
 	newAverage := 0.0
-	if commitment.Rating > 0 {
-		newAverage, err = s.repo.UpdateEntityScoreAndGetAverage(ctx, tx, commitment.EntityType, commitment.EntityID, commitment.Rating)
+	if commitment.Rating > 0 && commitment.EntityID != nil {
+		newAverage, err = s.repo.UpdateEntityScoreAndGetAverage(ctx, tx, commitment.EntityType, *commitment.EntityID, commitment.Rating)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Calculate +/- Ledger Update based on requested Ratings
+	// Calculate +/- Ledger Update based on requested Ratings or Points
 	// Initiator (+), Accepter (-)
 	scoreDelta := float64(commitment.Rating)
+	if commitment.Points > 0 {
+		scoreDelta = float64(commitment.Points)
+	}
 	if err := s.repo.UpdateReciprocityScore(ctx, tx, commitment.RelID, commitment.InitiatorID, scoreDelta); err != nil {
 		return nil, err
 	}
@@ -295,10 +307,95 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 	return comm, err
 }
 
+func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.UUID, req RequestCommitmentReq) (*Commitment, error) {
+	targetUID, err := uuid.Parse(req.TargetUserID)
+	if err != nil {
+		return nil, errors.New("invalid target user ID")
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	relID, err := s.repo.GetActiveRelationship(ctx, tx, initiatorID, targetUID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create favour: %v", err)
+	}
+
+	cat, pts := ClassifyFavour(req.Text)
+
+	commitment := &Commitment{
+		RelID:       relID,
+		InitiatorID: initiatorID,
+		TargetID:    targetUID,
+		Text:        req.Text,
+		Category:    cat,
+		Points:      pts,
+		Status:      StatusPending,
+	}
+
+	if err := s.repo.CreateCommitment(ctx, tx, commitment); err != nil {
+		return nil, err
+	}
+
+	// Outbox event
+	payload, _ := json.Marshal(map[string]interface{}{
+		"favour_id":     commitment.ID,
+		"from_user_id":  initiatorID,
+		"to_user_id":    targetUID,
+		"category":      cat,
+		"points":        pts,
+		"text":          req.Text,
+	})
+
+	outboxEvent := &OutboxEvent{
+		AggregateType: "Favour",
+		AggregateID:   commitment.ID,
+		EventType:     "FAVOUR_CREATED",
+		Payload:       string(payload),
+	}
+
+	if err := s.repo.InsertOutboxEvent(ctx, tx, outboxEvent); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	// Async push notification
+	go func() {
+		initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
+		target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
+		if target != nil && target.FCMToken != "" {
+			title := "New Favour Received!"
+			body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
+			s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
+				"type": "favour_created",
+				"id":   commitment.ID.String(),
+			})
+		}
+	}()
+
+	return commitment, nil
+}
+
 func (s *commitmentsService) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return s.repo.BeginTx(ctx)
 }
 
 func (s *commitmentsService) UpdateEntityRating(ctx context.Context, tx *sql.Tx, entityType EntityType, entityID uuid.UUID, rating int) (float64, error) {
 	return s.repo.UpdateEntityScoreAndGetAverage(ctx, tx, entityType, entityID, rating)
+}
+
+func (s *commitmentsService) GetFavourConfig() map[string]int {
+	return map[string]int{
+		string(CategoryHealth):    50,
+		string(CategoryMoney):     40,
+		string(CategoryHelp):      30,
+		string(CategoryEmotional): 20,
+		string(CategoryOther):     10,
+	}
 }

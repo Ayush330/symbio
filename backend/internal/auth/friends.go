@@ -401,6 +401,159 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 	transport.WriteJSON(w, http.StatusOK, activities)
 }
 
+// GetRelationshipStats returns detailed reciprocity stats and color for a friend
+func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userIDStr, err := extractUserID(r)
+	if err != nil {
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	userID := uuid.MustParse(userIDStr)
+
+	// Extract friend ID from path: /relationship/{id}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/relationship/"), "/")
+	if len(parts) < 1 || parts[0] == "" {
+		transport.SendError(w, http.StatusBadRequest, "Friend ID is required")
+		return
+	}
+	friendID, err := uuid.Parse(parts[0])
+	if err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid friend ID")
+		return
+	}
+
+	var score float64
+	var totalGiven, totalReceived int
+	var pointsGiven, pointsReceived int
+
+	query := `
+		SELECT ur.reciprocity_score,
+			(SELECT COUNT(*) FROM commitments WHERE rel_id = ur.id AND initiator_id = $1 AND status = 'ACKNOWLEDGED') as given,
+			(SELECT COUNT(*) FROM commitments WHERE rel_id = ur.id AND target_id = $1 AND status = 'ACKNOWLEDGED') as received,
+			(SELECT COALESCE(SUM(points), 0) FROM commitments WHERE rel_id = ur.id AND initiator_id = $1 AND status = 'ACKNOWLEDGED') as pts_given,
+			(SELECT COALESCE(SUM(points), 0) FROM commitments WHERE rel_id = ur.id AND target_id = $1 AND status = 'ACKNOWLEDGED') as pts_received
+		FROM user_relationships ur
+		WHERE (ur.user_a_id = $1 AND ur.user_b_id = $2) OR (ur.user_a_id = $2 AND ur.user_b_id = $1)
+	`
+	err = h.db.QueryRowContext(r.Context(), query, userID, friendID).Scan(&score, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
+	if err != nil {
+		transport.SendError(w, http.StatusNotFound, "Relationship not found")
+		return
+	}
+
+	color := "yellow"
+	if score > 50 {
+		color = "green"
+	} else if score < -50 {
+		color = "red"
+	}
+
+	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"score":           score,
+		"color":           color,
+		"total_given":     totalGiven,
+		"total_received":  totalReceived,
+		"points_given":    pointsGiven,
+		"points_received": pointsReceived,
+	})
+}
+
+// GetProfileStats returns global stats for the current user
+func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userIDStr, err := extractUserID(r)
+	if err != nil {
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	userID := uuid.MustParse(userIDStr)
+
+	var totalGiven, totalReceived int
+	var pointsGiven, pointsReceived int
+
+	query := `
+		SELECT 
+			COUNT(*) FILTER (WHERE initiator_id = $1) as given,
+			COUNT(*) FILTER (WHERE target_id = $1) as received,
+			COALESCE(SUM(points) FILTER (WHERE initiator_id = $1), 0) as pts_given,
+			COALESCE(SUM(points) FILTER (WHERE target_id = $1), 0) as pts_received
+		FROM commitments
+		WHERE status = 'ACKNOWLEDGED' AND (initiator_id = $1 OR target_id = $1)
+	`
+	err = h.db.QueryRowContext(r.Context(), query, userID).Scan(&totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
+	if err != nil {
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"total_favours_given":    totalGiven,
+		"total_favours_received": totalReceived,
+		"total_points_given":     pointsGiven,
+		"total_points_received":  pointsReceived,
+	})
+}
+
+// GetActivityGraph returns points comparison with top friends
+func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userIDStr, err := extractUserID(r)
+	if err != nil {
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	userID := uuid.MustParse(userIDStr)
+
+	// Fetch top 5 friends based on total points exchanged
+	query := `
+		WITH friend_points AS (
+			SELECT 
+				CASE WHEN ur.user_a_id = $1 THEN ur.user_b_id ELSE ur.user_a_id END as friend_id,
+				SUM(c.points) as total_points
+			FROM user_relationships ur
+			JOIN commitments c ON c.rel_id = ur.id
+			WHERE (ur.user_a_id = $1 OR ur.user_b_id = $1) AND ur.status = 'ACCEPTED' AND c.status = 'ACKNOWLEDGED'
+			GROUP BY friend_id
+			ORDER BY total_points DESC
+			LIMIT 5
+		)
+		SELECT u.name, fp.total_points
+		FROM friend_points fp
+		JOIN users u ON u.id = fp.friend_id
+	`
+	rows, err := h.db.QueryContext(r.Context(), query, userID)
+	if err != nil {
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var name string
+		var points int
+		if err := rows.Scan(&name, &points); err != nil {
+			continue
+		}
+		results = append(results, map[string]interface{}{"name": name, "points": points})
+	}
+
+	transport.WriteJSON(w, http.StatusOK, results)
+}
+
 // extractUserID extracts user ID from JWT token in Authorization header
 func extractUserID(r *http.Request) (string, error) {
 	auth := r.Header.Get("Authorization")

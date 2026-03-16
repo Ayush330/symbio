@@ -61,6 +61,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final isLoggedIn = await authRepository.isLoggedIn();
       if (isLoggedIn) {
         final token = await authRepository.getToken();
+        await authRepository.fetchAndCacheFavourConfig();
         emit(Authenticated(token ?? '')); 
       } else {
         emit(Unauthenticated());
