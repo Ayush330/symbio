@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/Ayush330/symbio/backend/internal/auth"
 	"github.com/google/uuid"
