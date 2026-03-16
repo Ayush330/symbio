@@ -30,6 +30,9 @@ func NewFCMService(credentialsPath string) (*FCMService, error) {
 }
 
 func (s *FCMService) SendPushNotification(ctx context.Context, token, title, body string, data map[string]string) error {
+	if s == nil || s.client == nil {
+		return nil // Service not initialized, skip silently
+	}
 	if token == "" {
 		return nil // No token, skip
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"time"
@@ -31,6 +32,9 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer postgresDB.Close()
+
+	// 1.5 Auto-migrate missing columns
+	ensureSchema(postgresDB)
 
 	redisClient, err := db.NewRedisClient()
 	if err != nil {
@@ -126,7 +130,56 @@ func main() {
 	// 5. Start Server
 	port := ":8080"
 	log.Printf("Starting server on port %s", port)
-	if err := http.ListenAndServe(port, mux); err != nil {
+
+	// Wrap mux with Recovery and CORS
+	handler := recoveryMiddleware(corsMiddleware(mux))
+
+	if err := http.ListenAndServe(port, handler); err != nil {
 		log.Fatalf("Could not start server: %v\n", err)
 	}
+}
+
+func ensureSchema(db *sql.DB) {
+	log.Println("Checking database schema...")
+	
+	// Add category column if missing
+	_, err := db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS category VARCHAR(20)`)
+	if err != nil {
+		log.Printf("Warning: failed to add category column: %v", err)
+	}
+
+	// Add points column if missing
+	_, err = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS points INT DEFAULT 0`)
+	if err != nil {
+		log.Printf("Warning: failed to add points column: %v", err)
+	}
+
+	log.Println("Schema check complete.")
+}
+
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("PANIC RECOVERED: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

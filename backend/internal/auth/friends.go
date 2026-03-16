@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Ayush330/symbio/backend/internal/transport"
 	"github.com/google/uuid"
@@ -50,6 +52,13 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		log.Printf("Error parsing userID to UUID: %v", err)
+		transport.SendError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
 	query := `
 		SELECT
 			u.id, u.name, u.email, COALESCE(u.phone, ''),
@@ -63,8 +72,9 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		  AND ur.status = 'ACCEPTED'
 	`
 
-	rows, err := h.db.QueryContext(r.Context(), query, userID)
+	rows, err := h.db.QueryContext(r.Context(), query, userUUID)
 	if err != nil {
+		log.Printf("DB Query Error (ListFriends): %v", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -96,6 +106,13 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		log.Printf("Error parsing userID to UUID: %v", err)
+		transport.SendError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
 	query := `
 		SELECT
 			u.id, u.name, u.email, COALESCE(u.phone, ''),
@@ -107,8 +124,9 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 		  AND ur.initiator_id != $1
 	`
 
-	rows, err := h.db.QueryContext(r.Context(), query, userID)
+	rows, err := h.db.QueryContext(r.Context(), query, userUUID)
 	if err != nil {
+		log.Printf("DB Query Error (ListFriendRequests): %v", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -149,8 +167,15 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Standardize UUID ordering to prevent duplicates
-	uid1, uid2 := initiatorID, req.TargetID
-	if uid1 > uid2 {
+	initiatorUUID := uuid.MustParse(initiatorID)
+	targetUUID, err := uuid.Parse(req.TargetID)
+	if err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid target ID")
+		return
+	}
+
+	uid1, uid2 := initiatorUUID, targetUUID
+	if strings.Compare(uid1.String(), uid2.String()) > 0 {
 		uid1, uid2 = uid2, uid1
 	}
 
@@ -158,7 +183,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		INSERT INTO user_relationships (user_a_id, user_b_id, initiator_id, status)
 		VALUES ($1, $2, $3, 'PENDING')
 		ON CONFLICT (user_a_id, user_b_id) DO NOTHING
-	`, uid1, uid2, initiatorID)
+	`, uid1, uid2, initiatorUUID)
 
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Failed to send request")
@@ -166,18 +191,20 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Async push notification
-	go func() {
-		initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(initiatorID))
-		target, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(req.TargetID))
-		if target != nil && target.FCMToken != "" {
-			title := "New Friend Request"
-			body := fmt.Sprintf("%s wants to connect with you on Symbio!", initiator.Name)
-			h.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
-				"type": "friend_request",
-				"id":   initiatorID,
-			})
-		}
-	}()
+	if h.pushSender != nil {
+		go func() {
+			initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(initiatorID))
+			target, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(req.TargetID))
+			if target != nil && target.FCMToken != "" {
+				title := "New Friend Request"
+				body := fmt.Sprintf("%s wants to connect with you on Symbio!", initiator.Name)
+				h.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
+					"type": "friend_request",
+					"id":   initiatorID,
+				})
+			}
+		}()
+	}
 
 	transport.WriteJSON(w, http.StatusCreated, map[string]bool{"success": true})
 }
@@ -203,11 +230,19 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	relUUID, err := uuid.Parse(req.RelID)
+	if err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid relationship ID")
+		return
+	}
+
+	userUUID := uuid.MustParse(userID)
+
 	res, err := h.db.ExecContext(r.Context(), `
 		UPDATE user_relationships 
 		SET status = 'ACCEPTED'
 		WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2) AND initiator_id != $2 AND status = 'PENDING'
-	`, req.RelID, userID)
+	`, relUUID, userUUID)
 
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
@@ -221,23 +256,25 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Async push notification
-	go func() {
-		var initiatorIDStr string
-		err := h.db.QueryRowContext(context.Background(), "SELECT initiator_id FROM user_relationships WHERE id = $1", req.RelID).Scan(&initiatorIDStr)
-		if err == nil {
-			initiatorID, _ := uuid.Parse(initiatorIDStr)
-			accepter, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(userID))
-			initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), initiatorID)
-			if initiator != nil && initiator.FCMToken != "" {
-				title := "Friend Request Accepted!"
-				body := fmt.Sprintf("%s has accepted your friend request. You can now build commitments together!", accepter.Name)
-				h.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
-					"type": "friend_accepted",
-					"id":   userID,
-				})
+	if h.pushSender != nil {
+		go func() {
+			var initiatorIDStr string
+			err := h.db.QueryRowContext(context.Background(), "SELECT initiator_id FROM user_relationships WHERE id = $1", relUUID).Scan(&initiatorIDStr)
+			if err == nil {
+				initiatorID, _ := uuid.Parse(initiatorIDStr)
+				accepter, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(userID))
+				initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), initiatorID)
+				if initiator != nil && initiator.FCMToken != "" {
+					title := "Friend Request Accepted!"
+					body := fmt.Sprintf("%s has accepted your friend request. You can now build commitments together!", accepter.Name)
+					h.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
+						"type": "friend_accepted",
+						"id":   userID,
+					})
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
@@ -263,10 +300,18 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	relUUID, err := uuid.Parse(req.RelID)
+	if err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid relationship ID")
+		return
+	}
+
+	userUUID := uuid.MustParse(userID)
+
 	res, err := h.db.ExecContext(r.Context(), `
 		DELETE FROM user_relationships 
 		WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2) AND status = 'PENDING'
-	`, req.RelID, userID)
+	`, relUUID, userUUID)
 
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
@@ -340,6 +385,13 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 	}
 	friendID := parts[0]
 
+	userUUID := uuid.MustParse(userID)
+	friendUUID, err := uuid.Parse(friendID)
+	if err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid friend ID")
+		return
+	}
+
 	// Find relationship between the two users
 	query := `
 		SELECT ur.id FROM user_relationships ur
@@ -347,7 +399,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		   OR (ur.user_a_id = $2 AND ur.user_b_id = $1)
 	`
 	var relID uuid.UUID
-	err = h.db.QueryRowContext(r.Context(), query, userID, friendID).Scan(&relID)
+	err = h.db.QueryRowContext(r.Context(), query, userUUID, friendUUID).Scan(&relID)
 	if err != nil {
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
@@ -389,12 +441,13 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 	activities := []ActivityItem{}
 	for rows.Next() {
 		var a ActivityItem
-		var createdAt interface{}
+		var createdAt time.Time
 		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.EntityType, &a.Rating, &a.Status, &createdAt, &a.EntityName, &a.InitiatorName); err != nil {
+			log.Printf("DB Scan Error (GetFriendActivity): %v", err)
 			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
-		a.CreatedAt = createdAt.(interface{ String() string }).String()
+		a.CreatedAt = createdAt.Format(time.RFC3339)
 		activities = append(activities, a)
 	}
 
@@ -442,6 +495,7 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 	`
 	err = h.db.QueryRowContext(r.Context(), query, userID, friendID).Scan(&score, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
+		log.Printf("DB Query Error (GetRelationshipStats): %v", err)
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
 	}
@@ -491,6 +545,7 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 	`
 	err = h.db.QueryRowContext(r.Context(), query, userID).Scan(&totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
+		log.Printf("DB Query Error (GetProfileStats): %v", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}

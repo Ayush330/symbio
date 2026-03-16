@@ -132,22 +132,24 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 	}
 
 	// Async push notification
-	go func() {
-		initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
-		target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
-		if target != nil && target.FCMToken != "" {
-			title := "New Commitment Request"
-			body := fmt.Sprintf("%s has proposed a new %s commitment: %s", initiator.Name, req.EntityType, req.EntityName)
-			if req.EntityName == "" {
-				// Handle case where entity_id was provided
-				body = fmt.Sprintf("%s has proposed a new commitment", initiator.Name)
+	if s.pushSender != nil {
+		go func() {
+			initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
+			target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
+			if target != nil && target.FCMToken != "" {
+				title := "New Commitment Request"
+				body := fmt.Sprintf("%s has proposed a new %s commitment: %s", initiator.Name, req.EntityType, req.EntityName)
+				if req.EntityName == "" {
+					// Handle case where entity_id was provided
+					body = fmt.Sprintf("%s has proposed a new commitment", initiator.Name)
+				}
+				s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
+					"type": "commitment_request",
+					"id":   commitment.ID.String(),
+				})
 			}
-			s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
-				"type": "commitment_request",
-				"id":   commitment.ID.String(),
-			})
-		}
-	}()
+		}()
+	}
 
 	return commitment, nil
 }
@@ -234,18 +236,20 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 	commitment.Status = StatusAcknowledged
 	// Note: We should ideally have the TargetID already from GetCommitment
 	// Async push notification
-	go func() {
-		target, _ := s.authRepo.GetUserByID(context.Background(), commitment.TargetID) // Person who accepted
-		initiator, _ := s.authRepo.GetUserByID(context.Background(), commitment.InitiatorID)
-		if initiator != nil && initiator.FCMToken != "" {
-			title := "Commitment Accepted!"
-			body := fmt.Sprintf("%s has accepted your commitment.", target.Name)
-			s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
-				"type": "commitment_accepted",
-				"id":   commitment.ID.String(),
-			})
-		}
-	}()
+	if s.pushSender != nil {
+		go func() {
+			target, _ := s.authRepo.GetUserByID(context.Background(), commitment.TargetID) // Person who accepted
+			initiator, _ := s.authRepo.GetUserByID(context.Background(), commitment.InitiatorID)
+			if initiator != nil && initiator.FCMToken != "" {
+				title := "Commitment Accepted!"
+				body := fmt.Sprintf("%s has accepted your commitment.", target.Name)
+				s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
+					"type": "commitment_accepted",
+					"id":   commitment.ID.String(),
+				})
+			}
+		}()
+	}
 
 	return commitment, nil
 }
@@ -289,20 +293,22 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 	// Fetch or update local object to return
 	comm, err := s.repo.GetCommitment(ctx, commID)
 	// Async push notification
-	go func() {
-		target, _ := s.authRepo.GetUserByID(context.Background(), userID) // Person who denied
-		if comm != nil {
-			initiator, _ := s.authRepo.GetUserByID(context.Background(), comm.InitiatorID)
-			if initiator != nil && initiator.FCMToken != "" {
-				title := "Commitment Denied"
-				body := fmt.Sprintf("%s has denied your commitment request.", target.Name)
-				s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
-					"type": "commitment_denied",
-					"id":   commID.String(),
-				})
+	if s.pushSender != nil {
+		go func() {
+			target, _ := s.authRepo.GetUserByID(context.Background(), userID) // Person who denied
+			if comm != nil {
+				initiator, _ := s.authRepo.GetUserByID(context.Background(), comm.InitiatorID)
+				if initiator != nil && initiator.FCMToken != "" {
+					title := "Commitment Denied"
+					body := fmt.Sprintf("%s has denied your commitment request.", target.Name)
+					s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
+						"type": "commitment_denied",
+						"id":   commID.String(),
+					})
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	return comm, err
 }
@@ -366,18 +372,20 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 	}
 
 	// Async push notification
-	go func() {
-		initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
-		target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
-		if target != nil && target.FCMToken != "" {
-			title := "New Favour Received!"
-			body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
-			s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
-				"type": "favour_created",
-				"id":   commitment.ID.String(),
-			})
-		}
-	}()
+	if s.pushSender != nil {
+		go func() {
+			initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
+			target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
+			if target != nil && target.FCMToken != "" {
+				title := "New Favour Received!"
+				body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
+				s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
+					"type": "favour_created",
+					"id":   commitment.ID.String(),
+				})
+			}
+		}()
+	}
 
 	return commitment, nil
 }

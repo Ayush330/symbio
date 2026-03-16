@@ -63,6 +63,8 @@ services:
       TWILIO_ACCOUNT_SID: "REPLACE_ME"
       TWILIO_AUTH_TOKEN: "REPLACE_ME"
       TWILIO_FROM_NUMBER: "+1234567890"
+    volumes:
+      - ./backend/firebase-adminsdk.json:/app/firebase-adminsdk.json:ro
     depends_on:
       - db
       - redis
