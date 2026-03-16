@@ -154,6 +154,13 @@ func ensureSchema(db *sql.DB) {
 		log.Printf("Warning: failed to add points column: %v", err)
 	}
 
+	// Add text column if missing
+	log.Println("Ensuring 'text' column exists in commitments...")
+	_, err = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS text TEXT`)
+	if err != nil {
+		log.Fatalf("CRITICAL: failed to add text column: %v", err)
+	}
+
 	log.Println("Schema check complete.")
 }
 

@@ -134,19 +134,33 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 	// Async push notification
 	if s.pushSender != nil {
 		go func() {
-			initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
-			target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
+			initiator, err := s.authRepo.GetUserByID(context.Background(), initiatorID)
+			if err != nil {
+				log.Printf("Warning: failed to fetch initiator (%s) for request notification: %v", initiatorID, err)
+				return
+			}
+			target, err := s.authRepo.GetUserByID(context.Background(), targetUID)
+			if err != nil {
+				log.Printf("Warning: failed to fetch target (%s) for request notification: %v", targetUID, err)
+				return
+			}
+
 			if target != nil && target.FCMToken != "" {
 				title := "New Commitment Request"
-				body := fmt.Sprintf("%s has proposed a new %s commitment: %s", initiator.Name, req.EntityType, req.EntityName)
-				if req.EntityName == "" {
-					// Handle case where entity_id was provided
-					body = fmt.Sprintf("%s has proposed a new commitment", initiator.Name)
+				body := fmt.Sprintf("%s has proposed a new %s commitment", initiator.Name, req.EntityType)
+				if req.EntityName != "" {
+					body = fmt.Sprintf("%s has proposed a new %s: %s", initiator.Name, req.EntityType, req.EntityName)
 				}
-				s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
+				
+				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type": "commitment_request",
 					"id":   commitment.ID.String(),
 				})
+				if err != nil {
+					log.Printf("Error sending request notification to %s: %v", target.Email, err)
+				} else {
+					log.Printf("Successfully sent request notification to %s", target.Email)
+				}
 			}
 		}()
 	}
@@ -238,15 +252,26 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 	// Async push notification
 	if s.pushSender != nil {
 		go func() {
-			target, _ := s.authRepo.GetUserByID(context.Background(), commitment.TargetID) // Person who accepted
-			initiator, _ := s.authRepo.GetUserByID(context.Background(), commitment.InitiatorID)
+			target, err := s.authRepo.GetUserByID(context.Background(), commitment.TargetID) // Person who accepted
+			if err != nil {
+				log.Printf("Warning: failed to fetch target for accept notification: %v", err)
+				return
+			}
+			initiator, err := s.authRepo.GetUserByID(context.Background(), commitment.InitiatorID)
+			if err != nil {
+				log.Printf("Warning: failed to fetch initiator for accept notification: %v", err)
+				return
+			}
 			if initiator != nil && initiator.FCMToken != "" {
 				title := "Commitment Accepted!"
 				body := fmt.Sprintf("%s has accepted your commitment.", target.Name)
-				s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
+				err := s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
 					"type": "commitment_accepted",
 					"id":   commitment.ID.String(),
 				})
+				if err != nil {
+					log.Printf("Error sending accept notification to %s: %v", initiator.Email, err)
+				}
 			}
 		}()
 	}
@@ -295,16 +320,27 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 	// Async push notification
 	if s.pushSender != nil {
 		go func() {
-			target, _ := s.authRepo.GetUserByID(context.Background(), userID) // Person who denied
+			target, err := s.authRepo.GetUserByID(context.Background(), userID) // Person who denied
+			if err != nil {
+				log.Printf("Warning: failed to fetch target for deny notification: %v", err)
+				return
+			}
 			if comm != nil {
-				initiator, _ := s.authRepo.GetUserByID(context.Background(), comm.InitiatorID)
+				initiator, err := s.authRepo.GetUserByID(context.Background(), comm.InitiatorID)
+				if err != nil {
+					log.Printf("Warning: failed to fetch initiator for deny notification: %v", err)
+					return
+				}
 				if initiator != nil && initiator.FCMToken != "" {
 					title := "Commitment Denied"
 					body := fmt.Sprintf("%s has denied your commitment request.", target.Name)
-					s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
+					err := s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
 						"type": "commitment_denied",
 						"id":   commID.String(),
 					})
+					if err != nil {
+						log.Printf("Error sending deny notification to %s: %v", initiator.Email, err)
+					}
 				}
 			}
 		}()
@@ -374,15 +410,31 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 	// Async push notification
 	if s.pushSender != nil {
 		go func() {
-			initiator, _ := s.authRepo.GetUserByID(context.Background(), initiatorID)
-			target, _ := s.authRepo.GetUserByID(context.Background(), targetUID)
+			initiator, err := s.authRepo.GetUserByID(context.Background(), initiatorID)
+			if err != nil {
+				log.Printf("Warning: failed to fetch initiator (%s) for favour notification: %v", initiatorID, err)
+				return
+			}
+			target, err := s.authRepo.GetUserByID(context.Background(), targetUID)
+			if err != nil {
+				log.Printf("Warning: failed to fetch target (%s) for favour notification: %v", targetUID, err)
+				return
+			}
+
 			if target != nil && target.FCMToken != "" {
 				title := "New Favour Received!"
 				body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
-				s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
+				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type": "favour_created",
 					"id":   commitment.ID.String(),
 				})
+				if err != nil {
+					log.Printf("Error sending favour notification to %s: %v", target.Email, err)
+				} else {
+					log.Printf("Successfully sent favour notification to %s", target.Email)
+				}
+			} else {
+				log.Printf("Target user %s has no FCM token, skipping notification", targetUID)
 			}
 		}()
 	}

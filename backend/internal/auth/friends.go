@@ -179,10 +179,25 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		uid1, uid2 = uid2, uid1
 	}
 
+	// Check if relationship already exists
+	var existingStatus string
+	err = h.db.QueryRowContext(r.Context(), `
+		SELECT status FROM user_relationships 
+		WHERE (user_a_id = $1 AND user_b_id = $2)
+	`, uid1, uid2).Scan(&existingStatus)
+	
+	if err == nil {
+		if existingStatus == "ACCEPTED" {
+			transport.SendError(w, http.StatusConflict, "You are already friends with this user")
+			return
+		}
+		transport.SendError(w, http.StatusConflict, "A friend request is already pending")
+		return
+	}
+
 	_, err = h.db.ExecContext(r.Context(), `
 		INSERT INTO user_relationships (user_a_id, user_b_id, initiator_id, status)
 		VALUES ($1, $2, $3, 'PENDING')
-		ON CONFLICT (user_a_id, user_b_id) DO NOTHING
 	`, uid1, uid2, initiatorUUID)
 
 	if err != nil {
@@ -342,8 +357,8 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 
 	var userID uuid.UUID
 	var name string
-	err := h.db.QueryRowContext(r.Context(),
-		`SELECT id, name FROM users WHERE email = $1`, email,
+	err := h.db.QueryRowContext(r.Context(), 
+		`SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)`, email,
 	).Scan(&userID, &name)
 
 	if err == sql.ErrNoRows {
@@ -407,7 +422,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 
 	// Fetch recent commitments for this relationship
 	activityQuery := `
-		SELECT c.id, c.initiator_id, c.target_id, c.entity_type, c.rating, c.status, c.created_at,
+		SELECT c.id, c.initiator_id, c.target_id, c.entity_type, c.text, c.category, c.points, c.rating, c.status, c.created_at,
 			COALESCE(me.name, ee.name, 'Unknown') AS entity_name,
 			u.name AS initiator_name
 		FROM commitments c
@@ -431,18 +446,21 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		InitiatorID   uuid.UUID `json:"initiator_id"`
 		TargetID      uuid.UUID `json:"target_id"`
 		EntityType    string    `json:"entity_type"`
-		EntityName    string    `json:"entity_name"`
-		InitiatorName string    `json:"initiator_name"`
+		Text          string    `json:"text"`
+		Category      string    `json:"category"`
+		Points        int       `json:"points"`
 		Rating        int       `json:"rating"`
 		Status        string    `json:"status"`
 		CreatedAt     string    `json:"created_at"`
+		EntityName    string    `json:"entity_name"`
+		InitiatorName string    `json:"initiator_name"`
 	}
 
 	activities := []ActivityItem{}
 	for rows.Next() {
 		var a ActivityItem
 		var createdAt time.Time
-		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.EntityType, &a.Rating, &a.Status, &createdAt, &a.EntityName, &a.InitiatorName); err != nil {
+		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.EntityType, &a.Text, &a.Category, &a.Points, &a.Rating, &a.Status, &createdAt, &a.EntityName, &a.InitiatorName); err != nil {
 			log.Printf("DB Scan Error (GetFriendActivity): %v", err)
 			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
