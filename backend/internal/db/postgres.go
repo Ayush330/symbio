@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -43,6 +44,11 @@ func NewPostgresDB() (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Performance optimization for production
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	log.Println("Successfully connected to Postgres!")
 	return db, nil

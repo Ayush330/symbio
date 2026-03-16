@@ -46,16 +46,13 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		log.Printf("Error parsing userID to UUID: %v", err)
-		transport.SendError(w, http.StatusBadRequest, "Invalid user ID")
 		return
 	}
 
@@ -100,16 +97,13 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	userID, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		log.Printf("Error parsing userID to UUID: %v", err)
-		transport.SendError(w, http.StatusBadRequest, "Invalid user ID")
 		return
 	}
 
@@ -152,7 +146,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	initiatorID, err := extractUserID(r)
+	initiatorID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
@@ -167,7 +161,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Standardize UUID ordering to prevent duplicates
-	initiatorUUID := uuid.MustParse(initiatorID)
+	initiatorUUID := initiatorID
 	targetUUID, err := uuid.Parse(req.TargetID)
 	if err != nil {
 		transport.SendError(w, http.StatusBadRequest, "Invalid target ID")
@@ -191,13 +185,18 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 			transport.SendError(w, http.StatusConflict, "You are already friends with this user")
 			return
 		}
-		transport.SendError(w, http.StatusConflict, "A friend request is already pending")
-		return
+		if existingStatus == "PENDING" {
+			transport.SendError(w, http.StatusConflict, "A friend request is already pending")
+			return
+		}
+		// If status is REJECTED, we allow it to be updated back to PENDING below
 	}
 
 	_, err = h.db.ExecContext(r.Context(), `
 		INSERT INTO user_relationships (user_a_id, user_b_id, initiator_id, status)
 		VALUES ($1, $2, $3, 'PENDING')
+		ON CONFLICT (user_a_id, user_b_id) DO UPDATE 
+		SET status = 'PENDING', initiator_id = EXCLUDED.initiator_id
 	`, uid1, uid2, initiatorUUID)
 
 	if err != nil {
@@ -208,14 +207,14 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	// Async push notification
 	if h.pushSender != nil {
 		go func() {
-			initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(initiatorID))
+			initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), initiatorID)
 			target, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(req.TargetID))
 			if target != nil && target.FCMToken != "" {
 				title := "New Friend Request"
 				body := fmt.Sprintf("%s wants to connect with you on Symbio!", initiator.Name)
 				h.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type": "friend_request",
-					"id":   initiatorID,
+					"id":   initiatorID.String(),
 				})
 			}
 		}()
@@ -231,7 +230,7 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	userID, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
@@ -250,8 +249,6 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 		transport.SendError(w, http.StatusBadRequest, "Invalid relationship ID")
 		return
 	}
-
-	userUUID := uuid.MustParse(userID)
 
 	res, err := h.db.ExecContext(r.Context(), `
 		UPDATE user_relationships 
@@ -277,14 +274,14 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 			err := h.db.QueryRowContext(context.Background(), "SELECT initiator_id FROM user_relationships WHERE id = $1", relUUID).Scan(&initiatorIDStr)
 			if err == nil {
 				initiatorID, _ := uuid.Parse(initiatorIDStr)
-				accepter, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(userID))
+				accepter, _ := h.service.(*authService).repo.GetUserByID(context.Background(), userUUID)
 				initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), initiatorID)
 				if initiator != nil && initiator.FCMToken != "" {
 					title := "Friend Request Accepted!"
 					body := fmt.Sprintf("%s has accepted your friend request. You can now build commitments together!", accepter.Name)
 					h.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
 						"type": "friend_accepted",
-						"id":   userID,
+						"id":   userUUID.String(),
 					})
 				}
 			}
@@ -301,7 +298,7 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	userID, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
@@ -320,8 +317,6 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 		transport.SendError(w, http.StatusBadRequest, "Invalid relationship ID")
 		return
 	}
-
-	userUUID := uuid.MustParse(userID)
 
 	res, err := h.db.ExecContext(r.Context(), `
 		DELETE FROM user_relationships 
@@ -386,12 +381,11 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	userID, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-
 	// Extract friend ID from path: /friends/{id}/activity
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/friends/"), "/")
 	if len(parts) < 2 || parts[1] != "activity" {
@@ -399,8 +393,6 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	friendID := parts[0]
-
-	userUUID := uuid.MustParse(userID)
 	friendUUID, err := uuid.Parse(friendID)
 	if err != nil {
 		transport.SendError(w, http.StatusBadRequest, "Invalid friend ID")
@@ -479,12 +471,11 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	userIDStr, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	userID := uuid.MustParse(userIDStr)
 
 	// Extract friend ID from path: /relationship/{id}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/relationship/"), "/")
@@ -511,7 +502,7 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 		FROM user_relationships ur
 		WHERE (ur.user_a_id = $1 AND ur.user_b_id = $2) OR (ur.user_a_id = $2 AND ur.user_b_id = $1)
 	`
-	err = h.db.QueryRowContext(r.Context(), query, userID, friendID).Scan(&score, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
+	err = h.db.QueryRowContext(r.Context(), query, userUUID, friendID).Scan(&score, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
 		log.Printf("DB Query Error (GetRelationshipStats): %v", err)
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
@@ -542,12 +533,11 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userIDStr, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	userID := uuid.MustParse(userIDStr)
 
 	var totalGiven, totalReceived int
 	var pointsGiven, pointsReceived int
@@ -561,7 +551,7 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 		FROM commitments
 		WHERE status = 'ACKNOWLEDGED' AND (initiator_id = $1 OR target_id = $1)
 	`
-	err = h.db.QueryRowContext(r.Context(), query, userID).Scan(&totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
+	err = h.db.QueryRowContext(r.Context(), query, userUUID).Scan(&totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
 		log.Printf("DB Query Error (GetProfileStats): %v", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
@@ -583,12 +573,11 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	userIDStr, err := extractUserID(r)
+	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	userID := uuid.MustParse(userIDStr)
 
 	// Fetch top 5 friends based on total points exchanged
 	query := `
@@ -607,7 +596,7 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 		FROM friend_points fp
 		JOIN users u ON u.id = fp.friend_id
 	`
-	rows, err := h.db.QueryContext(r.Context(), query, userID)
+	rows, err := h.db.QueryContext(r.Context(), query, userUUID)
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
@@ -627,23 +616,3 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 	transport.WriteJSON(w, http.StatusOK, results)
 }
 
-// extractUserID extracts user ID from JWT token in Authorization header
-func extractUserID(r *http.Request) (string, error) {
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return "", ErrInvalidCredentials
-	}
-
-	tokenStr := strings.TrimPrefix(auth, "Bearer ")
-	claims, err := ParseJWT(tokenStr)
-	if err != nil {
-		return "", err
-	}
-
-	sub, ok := claims["sub"].(string)
-	if !ok {
-		return "", ErrInvalidCredentials
-	}
-
-	return sub, nil
-}

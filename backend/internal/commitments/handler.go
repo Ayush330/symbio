@@ -2,13 +2,11 @@ package commitments
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/Ayush330/symbio/backend/internal/auth"
 	"github.com/Ayush330/symbio/backend/internal/transport"
-	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -19,37 +17,13 @@ func NewHandler(s Service) *Handler {
 	return &Handler{Service: s}
 }
 
-// Utility to extract UserID from context/headers (In a real app, use a middleware)
-func extractUserID(r *http.Request) (uuid.UUID, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return uuid.Nil, errors.New("unauthorized")
-	}
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 {
-		return uuid.Nil, errors.New("unauthorized")
-	}
-
-	claims, err := auth.ParseJWT(parts[1])
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	sub, ok := claims["sub"].(string)
-	if !ok {
-		return uuid.Nil, errors.New("invalid token payload")
-	}
-
-	return uuid.Parse(sub)
-}
-
 func (h *Handler) RequestCommitment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	initiatorID, err := extractUserID(r)
+	initiatorID, err := auth.ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
@@ -57,7 +31,7 @@ func (h *Handler) RequestCommitment(w http.ResponseWriter, r *http.Request) {
 
 	var req RequestCommitmentReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.SendError(w, http.StatusBadRequest, "Invalid request payload")
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -76,27 +50,28 @@ func (h *Handler) AcceptCommitment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := extractUserID(r)
+	// Extract commitment ID from path: /commitments/{id}/accept
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/commitments/"), "/")
+	if len(parts) < 2 || parts[1] != "accept" {
+		transport.SendError(w, http.StatusBadRequest, "Invalid path")
+		return
+	}
+	id := parts[0]
+
+	userID, err := auth.ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	// E.g., /commitments/uuid/accept -> parsing out of simplicity
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 {
-		transport.SendError(w, http.StatusBadRequest, "Invalid path")
-		return
-	}
-	commID := parts[2]
-
-	req := AcceptCommitmentReq{CommitmentID: commID}
-	if _, err := h.Service.AcceptCommitment(r.Context(), userID, req); err != nil {
+	req := AcceptCommitmentReq{CommitmentID: id}
+	commitment, err := h.Service.AcceptCommitment(r.Context(), userID, req)
+	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "accepted"})
+	transport.WriteJSON(w, http.StatusOK, commitment)
 }
 
 func (h *Handler) DenyCommitment(w http.ResponseWriter, r *http.Request) {
@@ -105,34 +80,37 @@ func (h *Handler) DenyCommitment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := extractUserID(r)
+	// Extract commitment ID from path: /commitments/{id}/deny
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/commitments/"), "/")
+	if len(parts) < 2 || parts[1] != "deny" {
+		transport.SendError(w, http.StatusBadRequest, "Invalid path")
+		return
+	}
+	id := parts[0]
+
+	userID, err := auth.ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 {
-		transport.SendError(w, http.StatusBadRequest, "Invalid path")
-		return
-	}
-	commID := parts[2]
-
-	req := DenyCommitmentReq{CommitmentID: commID}
-	if _, err := h.Service.DenyCommitment(r.Context(), userID, req); err != nil {
+	req := DenyCommitmentReq{CommitmentID: id}
+	commitment, err := h.Service.DenyCommitment(r.Context(), userID, req)
+	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "denied"})
+	transport.WriteJSON(w, http.StatusOK, commitment)
 }
+
 func (h *Handler) CreateFavour(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	initiatorID, err := extractUserID(r)
+	initiatorID, err := auth.ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
@@ -140,12 +118,7 @@ func (h *Handler) CreateFavour(w http.ResponseWriter, r *http.Request) {
 
 	var req RequestCommitmentReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.SendError(w, http.StatusBadRequest, "Invalid request payload")
-		return
-	}
-
-	if req.Text == "" {
-		transport.SendError(w, http.StatusBadRequest, "Favour description is required")
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -158,16 +131,6 @@ func (h *Handler) CreateFavour(w http.ResponseWriter, r *http.Request) {
 	transport.WriteJSON(w, http.StatusCreated, favour)
 }
 
-func (h *Handler) GetFavourConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	config := h.Service.GetFavourConfig()
-	transport.WriteJSON(w, http.StatusOK, config)
-}
-
 func (h *Handler) ClassifyFavour(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -178,18 +141,18 @@ func (h *Handler) ClassifyFavour(w http.ResponseWriter, r *http.Request) {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.SendError(w, http.StatusBadRequest, "Invalid request payload")
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	if req.Text == "" {
-		transport.SendError(w, http.StatusBadRequest, "Favour description is required")
-		return
-	}
-
-	cat, pts := ClassifyFavour(req.Text)
+	category, points := ClassifyFavour(req.Text)
 	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"category": cat,
-		"points":   pts,
+		"category": category,
+		"points":   points,
 	})
+}
+
+func (h *Handler) GetFavourConfig(w http.ResponseWriter, r *http.Request) {
+	config := h.Service.GetFavourConfig()
+	transport.WriteJSON(w, http.StatusOK, config)
 }

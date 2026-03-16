@@ -2,7 +2,9 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/Ayush330/symbio/backend/internal/transport"
 	"github.com/google/uuid"
@@ -14,6 +16,27 @@ type Handler struct {
 
 func NewHandler(s Service) *Handler {
 	return &Handler{Service: s}
+}
+
+// ExtractUserID extracts user ID from JWT token in Authorization header
+func ExtractUserID(r *http.Request) (uuid.UUID, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return uuid.Nil, ErrInvalidCredentials
+	}
+
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := ParseJWT(tokenStr)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	sub, ok := claims["sub"].(string)
+	if !ok {
+		return uuid.Nil, errors.New("invalid token payload")
+	}
+
+	return uuid.Parse(sub)
 }
 
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
@@ -82,15 +105,9 @@ func (h *Handler) UpdateFCMToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDStr, err := extractUserID(r)
+	userID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		transport.SendError(w, http.StatusInternalServerError, "Invalid user ID")
 		return
 	}
 
