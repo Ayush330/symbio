@@ -172,6 +172,12 @@ func ensureSchema(db *sql.DB) {
 		log.Printf("Warning: failed to drop not-null on entity_type: %v", err)
 	}
 
+	// Drop rating check constraint since flavours have 0 rating (violates 1-100 check)
+	_, err = db.Exec(`ALTER TABLE commitments DROP CONSTRAINT IF EXISTS commitments_rating_check`)
+	if err != nil {
+		log.Printf("Warning: failed to drop rating check constraint: %v", err)
+	}
+
 	log.Println("Schema check complete.")
 }
 
