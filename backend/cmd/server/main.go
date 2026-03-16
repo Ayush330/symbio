@@ -161,6 +161,17 @@ func ensureSchema(db *sql.DB) {
 		log.Fatalf("CRITICAL: failed to add text column: %v", err)
 	}
 
+	// Drop NOT NULL constraints on entity_id and entity_type since flavours make them optional
+	log.Println("Relaxing NOT NULL constraints for flavours...")
+	_, err = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_id DROP NOT NULL`)
+	if err != nil {
+		log.Printf("Warning: failed to drop not-null on entity_id: %v", err)
+	}
+	_, err = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_type DROP NOT NULL`)
+	if err != nil {
+		log.Printf("Warning: failed to drop not-null on entity_type: %v", err)
+	}
+
 	log.Println("Schema check complete.")
 }
 
