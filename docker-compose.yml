@@ -8,7 +8,7 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: symbio_db
+      POSTGRES_DB: kizuna_db
       POSTGRES_USER: ayush_admin
       POSTGRES_PASSWORD: troy_secure_pass
     volumes:
@@ -55,7 +55,7 @@ services:
       DB_PORT: "5432"
       DB_USER: ayush_admin
       DB_PASSWORD: troy_secure_pass
-      DB_NAME: symbio_db
+      DB_NAME: kizuna_db
       JWT_SECRET: supersecretdefaultkey_change_in_prod
       REDIS_HOST: redis
       REDIS_PORT: "6379"

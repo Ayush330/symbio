@@ -1,6 +1,6 @@
-# Symbio Flutter Architecture Overview
+# Kizuna Flutter Architecture Overview
 
-This document provides a high-level overview of the client-side architecture of the Symbio app. It is designed to help you understand the flow of data and the structure of the code without needing to dive into every detail.
+This document provides a high-level overview of the client-side architecture of the Kizuna app. It is designed to help you understand the flow of data and the structure of the code without needing to dive into every detail.
 
 ## Core Philosophical Principles
 - **Clean Architecture**: Separation of concerns into layers (Presentation, Data, Core).

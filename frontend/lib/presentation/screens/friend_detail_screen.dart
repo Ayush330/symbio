@@ -57,7 +57,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
       ),
       body: Stack(
         children: [
-          Positioned.fill(child: Container(color: SymbioTheme.backgroundBlack)),
+          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
           SafeArea(
             child: Column(
               children: [
@@ -102,7 +102,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
             size: 80,
             shadows: [
               Shadow(
-                color: SymbioTheme.getKarmaColor(widget.health).withOpacity(0.5),
+                color: KizunaTheme.getKarmaColor(widget.health).withOpacity(0.5),
                 blurRadius: 40,
               ),
             ],

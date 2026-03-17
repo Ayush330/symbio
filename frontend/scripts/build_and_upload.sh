@@ -44,7 +44,7 @@ echo "🏗️ Building Release APK..."
 flutter build apk --release
 
 # 4. Rename and Move
-APK_NAME="symbio_$VERSION_PART+$NEW_BUILD.apk"
+APK_NAME="kizuna_$VERSION_PART+$NEW_BUILD.apk"
 SOURCE_APK="build/app/outputs/flutter-apk/app-release.apk"
 TARGET_PATH="scripts/$APK_NAME"
 

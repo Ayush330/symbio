@@ -23,7 +23,7 @@ void main() {
     final friendsRepository = FriendsRepository(dioClient: dioClient);
     final authBloc = AuthBloc(authRepository: authRepository);
 
-    await tester.pumpWidget(SymbioApp(
+    await tester.pumpWidget(KizunaApp(
       authBloc: authBloc,
       authRepository: authRepository,
       commitmentRepository: commitmentRepository,

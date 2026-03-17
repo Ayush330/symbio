@@ -35,6 +35,8 @@ class Favour {
 class RelationshipStats {
   final double score;
   final String color;
+  final int totalGiven;
+  final int totalReceived;
   final int pointsGiven;
   final int pointsReceived;
   final double karmaScore;
@@ -64,6 +66,8 @@ class RelationshipStats {
 }
 
 class ProfileStats {
+  final int totalFavoursGiven;
+  final int totalFavoursReceived;
   final int totalPointsGiven;
   final int totalPointsReceived;
   final double karmaScore;

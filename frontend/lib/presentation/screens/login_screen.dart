@@ -32,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    SymbioTheme.primaryBlue.withOpacity(0.05),
+                    KizunaTheme.primaryBlue.withOpacity(0.05),
                     Colors.black,
                   ],
                 ),

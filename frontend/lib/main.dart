@@ -165,7 +165,7 @@ class KizunaHome extends StatefulWidget {
 class _KizunaHomeState extends State<KizunaHome> {
   int _currentIndex = 0;
 
-  final _screens = const [
+  final _screens = [
     KizunaDashboard(),
     FriendsScreen(),
     ActivityTab(),

@@ -9,7 +9,7 @@ import '../widgets/glass_container.dart';
 import 'commitment_portal.dart';
 
 class KizunaDashboard extends StatefulWidget {
-  const SymbiosisDashboard({super.key});
+  const KizunaDashboard({super.key});
 
   @override
   State<KizunaDashboard> createState() => _KizunaDashboardState();
