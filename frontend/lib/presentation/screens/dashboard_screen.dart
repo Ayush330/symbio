@@ -147,102 +147,104 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
     return AnimatedBuilder(
       animation: _glowAnim,
       builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
+        return Column(
           children: [
-            // Glowing Backdrop
-            Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: heartColor.withValues(alpha: _glowAnim.value),
-                    blurRadius: 60,
-                    spreadRadius: 10,
-                  ),
-                ],
-              ),
-            ),
-            // The Heart
-            TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 0.8, end: 1.0),
-              duration: const Duration(milliseconds: 1500),
-              curve: Curves.elasticOut,
-              builder: (context, scale, child) {
-                return Transform.scale(
-                  scale: scale,
-                  child: ShaderMask(
-                    shaderCallback: (bounds) => LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        heartColor,
-                        heartColor.withValues(alpha: 0.7),
-                      ],
-                    ).createShader(bounds),
-                    child: Icon(
-                      Icons.favorite_rounded,
-                      size: 140,
-                      color: Colors.white,
-                    ),
-                  ),
-                );
-              },
-            ),
-            // Label & Info
-            Positioned(
-              bottom: 20,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: heartColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: heartColor.withValues(alpha: 0.2)),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w900,
-                        color: heartColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    KizunaTheme.getKarmaDescription(karmaScore),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 9,
-                      letterSpacing: 1.2,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Info Button
-            Positioned(
-              top: 0,
-              right: 0,
-              child: IconButton(
-                onPressed: () => _showAlgorithmInfo(context),
-                icon: Container(
-                  padding: const EdgeInsets.all(6),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                // Glowing Backdrop
+                Container(
+                  width: 180,
+                  height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white10),
-                    color: Colors.white.withValues(alpha: 0.05),
+                    boxShadow: [
+                      BoxShadow(
+                        color: heartColor.withValues(alpha: _glowAnim.value),
+                        blurRadius: 60,
+                        spreadRadius: 10,
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.info_outline, size: 14, color: Colors.white38),
                 ),
-              ),
+                // The Heart
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.8, end: 1.0),
+                  duration: const Duration(milliseconds: 1500),
+                  curve: Curves.elasticOut,
+                  builder: (context, scale, child) {
+                    return Transform.scale(
+                      scale: scale,
+                      child: ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            heartColor,
+                            heartColor.withValues(alpha: 0.7),
+                          ],
+                        ).createShader(bounds),
+                        child: Icon(
+                          Icons.favorite_rounded,
+                          size: 140,
+                          color: Colors.white,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // Info Button
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: IconButton(
+                    onPressed: () => _showAlgorithmInfo(context),
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white10),
+                        color: Colors.white.withValues(alpha: 0.05),
+                      ),
+                      child: const Icon(Icons.info_outline, size: 14, color: Colors.white38),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Label & Info
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: heartColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: heartColor.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w900,
+                      color: heartColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  KizunaTheme.getKarmaDescription(karmaScore),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -323,9 +325,9 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
       physics: const BouncingScrollPhysics(),
       child: Column(
         children: [
-          _buildStatCard('TOTAL FAVOURS', _stats!.totalFavoursGiven, _stats!.totalFavoursReceived),
+          _buildStatCard('TOTAL FAVOURS', _stats!.totalFavoursGiven, _stats!.totalFavoursReceived, _stats!.netFavours),
           const SizedBox(height: 24),
-          _buildStatCard('TOTAL POINTS', _stats!.totalPointsGiven, _stats!.totalPointsReceived),
+          _buildStatCard('TOTAL POINTS', _stats!.totalPointsGiven, _stats!.totalPointsReceived, _stats!.netPoints),
           const SizedBox(height: 32),
           _buildInfoMessage(),
           const SizedBox(height: 40),
@@ -334,13 +336,29 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
     );
   }
 
-  Widget _buildStatCard(String title, int given, int received) {
+  Widget _buildStatCard(String title, int given, int received, int net) {
     return GlassContainer(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (net >= 0 ? Colors.green : Colors.red).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'NET: ${net >= 0 ? "+" : ""}$net',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: net >= 0 ? Colors.green : Colors.redAccent),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           Row(
             children: [

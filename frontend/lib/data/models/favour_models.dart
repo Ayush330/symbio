@@ -70,6 +70,8 @@ class ProfileStats {
   final int totalFavoursReceived;
   final int totalPointsGiven;
   final int totalPointsReceived;
+  final int netFavours;
+  final int netPoints;
   final double karmaScore;
 
   ProfileStats({
@@ -77,6 +79,8 @@ class ProfileStats {
     required this.totalFavoursReceived,
     required this.totalPointsGiven,
     required this.totalPointsReceived,
+    required this.netFavours,
+    required this.netPoints,
     required this.karmaScore,
   });
 
@@ -86,6 +90,8 @@ class ProfileStats {
       totalFavoursReceived: json['total_favours_received'],
       totalPointsGiven: json['total_points_given'],
       totalPointsReceived: json['total_points_received'],
+      netFavours: json['net_favours'] ?? 0,
+      netPoints: json['net_points'] ?? 0,
       karmaScore: (json['karma_score'] as num?)?.toDouble() ?? 1.0,
     );
   }

@@ -49,9 +49,13 @@ type FriendInfo struct {
 }
 
 func calculateKarmaScore(favours, points int) float64 {
-	// Formula: S(x, y) = 1 + 99 * (1 - e^-(0.05*x + 0.005*y))
-	k_x := 0.05
-	k_y := 0.005
+	// Formula: S(x, y) = 1 + 99 * (1 - e^-(0.1*x + 0.01*y))
+	// We use the surplus (net contribution) for the score.
+	if favours < 0 { favours = 0 }
+	if points < 0 { points = 0 }
+	
+	k_x := 0.1 // Increased sensitivity for favours
+	k_y := 0.01
 	val := k_x*float64(favours) + k_y*float64(points)
 	score := 1.0 + 99.0*(1.0-math.Exp(-val))
 	return score
@@ -74,8 +78,10 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		SELECT
 			u.id, u.name, u.email, COALESCE(u.phone, ''),
 			ur.id AS rel_id, ur.reciprocity_score, ur.user_a_id,
-			COUNT(c.id) FILTER (WHERE c.status = 'ACKNOWLEDGED') as count_favours,
-			COALESCE(SUM(c.points) FILTER (WHERE c.status = 'ACKNOWLEDGED'), 0) as total_points
+			(COUNT(c.id) FILTER (WHERE c.initiator_id = $1 AND c.status = 'ACKNOWLEDGED') - 
+			 COUNT(c.id) FILTER (WHERE c.target_id = $1 AND c.status = 'ACKNOWLEDGED')) as net_favours,
+			(COALESCE(SUM(c.points) FILTER (WHERE c.initiator_id = $1 AND c.status = 'ACKNOWLEDGED'), 0) - 
+			 COALESCE(SUM(c.points) FILTER (WHERE c.target_id = $1 AND c.status = 'ACKNOWLEDGED'), 0)) as net_points
 		FROM user_relationships ur
 		JOIN users u ON (
 			(ur.user_a_id = $1 AND u.id = ur.user_b_id) OR
@@ -716,11 +722,13 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 	}
 
 	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"karma_score":            calculateKarmaScore(totalGiven+totalReceived, pointsGiven+pointsReceived),
+		"karma_score":            calculateKarmaScore(totalGiven - totalReceived, pointsGiven - pointsReceived),
 		"total_favours_given":    totalGiven,
 		"total_favours_received": totalReceived,
 		"total_points_given":     pointsGiven,
 		"total_points_received":  pointsReceived,
+		"net_favours":            totalGiven - totalReceived,
+		"net_points":             pointsGiven - pointsReceived,
 	})
 }
 
@@ -742,12 +750,15 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 		WITH friend_points AS (
 			SELECT 
 				CASE WHEN ur.user_a_id = $1 THEN ur.user_b_id ELSE ur.user_a_id END as friend_id,
-				SUM(c.points) as total_points
+				(COALESCE(SUM(c.points) FILTER (WHERE c.initiator_id = $1 AND c.status = 'ACKNOWLEDGED'), 0) - 
+				 COALESCE(SUM(c.points) FILTER (WHERE c.target_id = $1 AND c.status = 'ACKNOWLEDGED'), 0)) as points
 			FROM user_relationships ur
 			JOIN commitments c ON c.rel_id = ur.id
-			WHERE (ur.user_a_id = $1 OR ur.user_b_id = $1) AND ur.status = 'ACCEPTED' AND c.status = 'ACKNOWLEDGED'
+			WHERE (ur.user_a_id = $1 OR ur.user_b_id = $1) AND ur.status = 'ACCEPTED'
 			GROUP BY friend_id
-			ORDER BY total_points DESC
+			HAVING (COALESCE(SUM(c.points) FILTER (WHERE c.initiator_id = $1 AND c.status = 'ACKNOWLEDGED'), 0) - 
+				 COALESCE(SUM(c.points) FILTER (WHERE c.target_id = $1 AND c.status = 'ACKNOWLEDGED'), 0)) > 0
+			ORDER BY points DESC
 			LIMIT 5
 		)
 		SELECT u.name, fp.total_points

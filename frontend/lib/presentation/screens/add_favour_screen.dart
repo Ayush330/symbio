@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
+import '../../core/theme/app_theme.dart';
+import '../widgets/kizuna_button.dart';
+import '../widgets/glass_container.dart';
 
 class AddFavourScreen extends StatefulWidget {
   const AddFavourScreen({super.key});
@@ -10,10 +12,10 @@ class AddFavourScreen extends StatefulWidget {
 
 class _AddFavourScreenState extends State<AddFavourScreen> {
   String _selectedCategory = 'social';
-  int _timeLevel = 1;
-  int _effortLevel = 1;
-  int _sacrificeLevel = 1;
-  int _urgencyLevel = 1;
+  int _timeLevel = 3;
+  int _effortLevel = 3;
+  int _sacrificeLevel = 2;
+  int _urgencyLevel = 2;
 
   final Map<String, int> _categoryWeights = {
     'emergency': 100,
@@ -38,13 +40,12 @@ class _AddFavourScreenState extends State<AddFavourScreen> {
     'fun': 25,
   };
 
-  final List<String> _timeLabels = ["5 min", "30 min", "1 hr", "Half day", "Full day"];
-  final List<String> _effortLabels = ["Easy", "Normal", "Hard", "Very Hard", "Extreme"];
-  final List<String> _sacrificeLabels = ["None", "Small", "Medium", "Big", "Huge"];
-  final List<String> _urgencyLabels = ["Low", "Normal", "Urgent", "Very Urgent", "Emergency"];
+  final List<String> _timeLabels = ["5m", "30m", "1h", "1/2d", "Full"];
+  final List<String> _effortLabels = ["Easy", "Norm", "Hard", "VHard", "Ex"];
+  final List<String> _sacrificeLabels = ["None", "Small", "Med", "Big", "Huge"];
+  final List<String> _urgencyLabels = ["Low", "Norm", "Urg", "VUrg", "Emer"];
 
   double get _intensity {
-    // intensity = 5 * (effort + time + sacrifice + urgency) / 4
     return 5.0 * (_effortLevel + _timeLevel + _sacrificeLevel + _urgencyLevel) / 4.0;
   }
 
@@ -58,207 +59,186 @@ class _AddFavourScreenState extends State<AddFavourScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final auraColor = KizunaTheme.getKarmaColor(_finalScore.toDouble());
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(
-          'Add Favour',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
+        title: const Text('ADD FAVOUR', style: TextStyle(letterSpacing: 4, fontWeight: FontWeight.w900)),
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
+          // Top glow
+          Positioned(
+            top: -100,
+            right: -50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  auraColor.withValues(alpha: 0.1),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
           ),
-        ),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Category'),
-            const SizedBox(height: 12),
-            _buildCategoryDropdown(colorScheme),
-            
-            const SizedBox(height: 24),
-            _buildSectionTitle('Time spent'),
-            const SizedBox(height: 12),
-            _buildChoiceChips(_timeLabels, _timeLevel, (val) => setState(() => _timeLevel = val)),
-            
-            const SizedBox(height: 24),
-            _buildSectionTitle('Effort'),
-            const SizedBox(height: 12),
-            _buildChoiceChips(_effortLabels, _effortLevel, (val) => setState(() => _effortLevel = val)),
-            
-            const SizedBox(height: 24),
-            _buildSectionTitle('Sacrifice'),
-            const SizedBox(height: 12),
-            _buildChoiceChips(_sacrificeLabels, _sacrificeLevel, (val) => setState(() => _sacrificeLevel = val)),
-            
-            const SizedBox(height: 24),
-            _buildSectionTitle('Urgency'),
-            const SizedBox(height: 12),
-            _buildChoiceChips(_urgencyLabels, _urgencyLevel, (val) => setState(() => _urgencyLevel = val)),
-            
-            const SizedBox(height: 40),
-            _buildIntensityIndicator(colorScheme),
-            
-            const SizedBox(height: 32),
-            _buildSaveButton(colorScheme),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: Colors.grey[600],
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-
-  Widget _buildCategoryDropdown(ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedCategory,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          borderRadius: BorderRadius.circular(16),
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
-          onChanged: (String? newValue) {
-            if (newValue != null) {
-              setState(() => _selectedCategory = newValue);
-            }
-          },
-          items: _categoryWeights.keys.map<DropdownMenuItem<String>>((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value[0].toUpperCase() + value.substring(1)),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChoiceChips(List<String> labels, int currentVal, Function(int) onSelected) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: List.generate(labels.length, (index) {
-        final isSelected = currentVal == (index + 1);
-        return ChoiceChip(
-          label: Text(labels[index]),
-          selected: isSelected,
-          onSelected: (selected) {
-            if (selected) onSelected(index + 1);
-          },
-          showCheckmark: false,
-          labelStyle: TextStyle(
-            color: isSelected ? Colors.white : Colors.black87,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-            fontSize: 13,
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSection('CATEGORY', _buildCategoryDropdown(auraColor)),
+                  const SizedBox(height: 24),
+                  _buildSection('TIME SPENT', _buildChoiceChips(_timeLabels, _timeLevel, auraColor, (v) => setState(() => _timeLevel = v))),
+                  const SizedBox(height: 24),
+                  _buildSection('EFFORT', _buildChoiceChips(_effortLabels, _effortLevel, auraColor, (v) => setState(() => _effortLevel = v))),
+                  const SizedBox(height: 24),
+                  _buildSection('SACRIFICE', _buildChoiceChips(_sacrificeLabels, _sacrificeLevel, auraColor, (v) => setState(() => _sacrificeLevel = v))),
+                  const SizedBox(height: 24),
+                  _buildSection('URGENCY', _buildChoiceChips(_urgencyLabels, _urgencyLevel, auraColor, (v) => setState(() => _urgencyLevel = v))),
+                  
+                  const SizedBox(height: 48),
+                  _buildPulseIndicator(auraColor),
+                  const SizedBox(height: 40),
+                  
+                  KizunaButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Favour Recorded in Vault'), backgroundColor: Colors.black),
+                      );
+                      Navigator.pop(context);
+                    },
+                    label: 'SAVE TO LEDGER',
+                    icon: Icons.security_rounded,
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
           ),
-          selectedColor: Colors.black,
-          backgroundColor: Colors.grey[100],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: isSelected ? Colors.black : Colors.transparent),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        );
-      }),
+        ],
+      ),
     );
   }
 
-  Widget _buildIntensityIndicator(ColorScheme colorScheme) {
+  Widget _buildSection(String title, Widget child) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Intensity',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
-            ),
-            Text(
-              '${_intensity100.toInt()}%',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.black),
-            ),
-          ],
-        ),
+        Text(title, style: const TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
         const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: _intensity100 / 100,
-            minHeight: 12,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(_getIntensityColor(_intensity100)),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Karma Score: $_finalScore',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[600],
-            fontStyle: FontStyle.italic,
-          ),
-        ),
+        child,
       ],
     );
   }
 
-  Color _getIntensityColor(double intensity) {
-    if (intensity < 30) return Colors.blueAccent;
-    if (intensity < 60) return Colors.greenAccent[700]!;
-    if (intensity < 85) return Colors.orangeAccent;
-    return Colors.redAccent;
-  }
-
-  Widget _buildSaveButton(ColorScheme colorScheme) {
-    return SizedBox(
-      width: double.infinity,
-      height: 60,
-      child: ElevatedButton(
-        onPressed: () {
-          // TODO: Implement save logic
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Favour Saved!'), behavior: SnackBarBehavior.floating),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          elevation: 0,
-        ),
-        child: const Text(
-          'Save favour',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+  Widget _buildCategoryDropdown(Color color) {
+    return GlassContainer(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedCategory,
+          isExpanded: true,
+          dropdownColor: KizunaTheme.surfaceGlass,
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: color),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+          onChanged: (v) => setState(() => _selectedCategory = v!),
+          items: _categoryWeights.keys.map((c) => DropdownMenuItem(
+            value: c,
+            child: Text(c.toUpperCase(), style: const TextStyle(letterSpacing: 1)),
+          )).toList(),
         ),
       ),
+    );
+  }
+
+  Widget _buildChoiceChips(List<String> labels, int currentVal, Color auraColor, Function(int) onSelected) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: List.generate(labels.length, (index) {
+          final isSelected = currentVal == (index + 1);
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => onSelected(index + 1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? auraColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? auraColor.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Text(
+                  labels[index],
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white38,
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildPulseIndicator(Color color) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('INTENSITY', style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
+            Text('${_intensity100.toInt()}%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Stack(
+          children: [
+            Container(height: 10, width: double.infinity, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(5))),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              height: 10,
+              width: (MediaQuery.of(context).size.width - 48) * (_intensity100 / 100),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [color.withValues(alpha: 0.5), color]),
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 1)],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('KARMA SCORE:', style: const TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
+              const SizedBox(width: 12),
+              Text('$_finalScore', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

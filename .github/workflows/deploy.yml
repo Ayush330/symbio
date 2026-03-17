@@ -127,8 +127,13 @@ jobs:
             # Login to GHCR (required if package is private)
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Pull latest images
-            docker compose pull api
+            # Create .env file from GitHub Secrets
+            cat <<EOF > .env
+TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}
+GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+EOF
             
             # Restart all services (db, redis, kafka, api)
             docker compose up -d
