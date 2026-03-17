@@ -64,7 +64,7 @@ func (h *Handler) SendInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.Twilio.SendInvite(req.PhoneNumber, inviterName)
+	err = h.Twilio.SendInvite(req.PhoneNumber, inviterName, false)
 	if err != nil {
 		// Log it, but return generic error to client
 		transport.SendError(w, http.StatusInternalServerError, "Failed to send invite")

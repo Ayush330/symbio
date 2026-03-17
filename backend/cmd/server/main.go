@@ -134,7 +134,7 @@ func main() {
 
 func ensureSchema(db *sql.DB) {
 	log.Println("Checking database schema...")
-	
+
 	// Ensure essential columns exist
 	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS category VARCHAR(20)`)
 	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS points INT DEFAULT 0`)

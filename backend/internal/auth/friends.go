@@ -21,15 +21,21 @@ type PushSender interface {
 	SendPushNotification(ctx context.Context, token, title, body string, data map[string]string) error
 }
 
+// SmsSender allows sending SMS invitations
+type SmsSender interface {
+	SendInvite(toNumber string, inviterName string, formal bool) error
+}
+
 // FriendsHandler handles friend-related HTTP endpoints
 type FriendsHandler struct {
 	db         *sql.DB
 	service    Service
 	pushSender PushSender
+	smsSender  SmsSender
 }
 
-func NewFriendsHandler(db *sql.DB, s Service, push PushSender) *FriendsHandler {
-	return &FriendsHandler{db: db, service: s, pushSender: push}
+func NewFriendsHandler(db *sql.DB, s Service, push PushSender, sms SmsSender) *FriendsHandler {
+	return &FriendsHandler{db: db, service: s, pushSender: push, smsSender: sms}
 }
 
 type FriendInfo struct {
@@ -99,7 +105,7 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
-		// Reciprocity score is UserA - UserB. 
+		// Reciprocity score is UserA - UserB.
 		// If requesting user is UserB, invert it so it's relative to them.
 		if userUUID != userA {
 			score = -score
@@ -195,7 +201,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		SELECT status FROM user_relationships 
 		WHERE (user_a_id = $1 AND user_b_id = $2)
 	`, uid1, uid2).Scan(&existingStatus)
-	
+
 	if err == nil {
 		if existingStatus == "ACCEPTED" {
 			transport.SendError(w, http.StatusConflict, "You are already friends with this user")
@@ -371,11 +377,11 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if email != "" {
-		err = h.db.QueryRowContext(r.Context(), 
+		err = h.db.QueryRowContext(r.Context(),
 			`SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)`, email,
 		).Scan(&userID, &name)
 	} else {
-		err = h.db.QueryRowContext(r.Context(), 
+		err = h.db.QueryRowContext(r.Context(),
 			`SELECT id, name FROM users WHERE phone = $1`, phone,
 		).Scan(&userID, &name)
 	}
@@ -427,9 +433,23 @@ func (h *FriendsHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For now, we just log the invite and notify the user
-	// In a real app, this would trigger SMS via Twilio or Email via SendGrid
+	// For now, we just log the invite
 	log.Printf("INVITE: User %s invited %s (Email: %s, Phone: %s)", userUUID, req.Name, req.Email, req.Phone)
+
+	// If we have an SMS sender and a phone number, send actual invite
+	if h.smsSender != nil && req.Phone != "" {
+		// Get inviter name
+		inviterName := "A friend"
+		inviter, err := h.service.(*authService).repo.GetUserByID(r.Context(), userUUID)
+		if err == nil && inviter != nil {
+			inviterName = inviter.Name
+		}
+
+		err = h.smsSender.SendInvite(req.Phone, inviterName, false)
+		if err != nil {
+			log.Printf("ERROR: Failed to send SMS invite to %s: %v", req.Phone, err)
+		}
+	}
 
 	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
@@ -482,7 +502,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		SELECT id FROM user_relationships 
 		WHERE (user_a_id = $1 AND user_b_id = $2) OR (user_a_id = $2 AND user_b_id = $1)
 	`, userUUID, friendUUID).Scan(&relID)
-	
+
 	if err != nil {
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
@@ -565,7 +585,7 @@ func (h *FriendsHandler) GetGlobalActivity(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 		a.CreatedAt = createdAt.Format(time.RFC3339)
-		
+
 		month := createdAt.Format("January 2006")
 		if currentGroup == nil || currentGroup.Month != month {
 			groups = append(groups, ActivityGroup{
@@ -586,8 +606,12 @@ func parseLimitOffset(r *http.Request) (int, int) {
 	offsetStr := r.URL.Query().Get("offset")
 	limit, _ := strconv.Atoi(limitStr)
 	offset, _ := strconv.Atoi(offsetStr)
-	if limit <= 0 { limit = 20 }
-	if offset < 0 { offset = 0 }
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	return limit, offset
 }
 

@@ -10,14 +10,14 @@ import (
 )
 
 type TwilioService struct {
-	client       *twilio.RestClient
-	fromNumber   string
+	client     *twilio.RestClient
+	fromNumber string
 }
 
 func NewTwilioService() (*TwilioService, error) {
 	// expects TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in environment by default
 	client := twilio.NewRestClient()
-	
+
 	from := os.Getenv("TWILIO_FROM_NUMBER")
 	if from == "" {
 		return nil, errors.New("missing TWILIO_FROM_NUMBER environment variable")
@@ -29,9 +29,9 @@ func NewTwilioService() (*TwilioService, error) {
 	}, nil
 }
 
-func (s *TwilioService) SendInvite(toNumber string, inviterName string) error {
-	msg := fmt.Sprintf("Hey! %s has invited you to join Kizuna. Sign up here: https://kizuna.app", inviterName)
-	
+func (s *TwilioService) SendInvite(toNumber string, inviterName string, formal bool) error {
+	msg := fmt.Sprintf("Hey! %s has invited you to join Symbio. Sign up here: https://symbio.app", inviterName)
+
 	params := &twilioApi.CreateMessageParams{}
 	params.SetTo(toNumber)
 	params.SetFrom(s.fromNumber)
