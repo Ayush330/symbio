@@ -144,7 +144,8 @@ func ensureSchema(db *sql.DB) {
 	// Relax constraints to support pure text/points flow
 	_, _ = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_id DROP NOT NULL`)
 	_, _ = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_type DROP NOT NULL`)
-	_, _ = db.Exec(`ALTER TABLE commitments DROP CONSTRAINT IF EXISTS commitments_rating_check`)
+	// Ensure phone is a unique identifier
+	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL AND phone != ''`)
 
 	log.Println("Schema check complete.")
 }

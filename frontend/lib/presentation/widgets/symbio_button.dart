@@ -8,6 +8,8 @@ class SymbioButton extends StatefulWidget {
   final List<Color>? gradient;
   final bool isLoading;
   final bool outline;
+  final EdgeInsets? padding;
+  final double fontSize;
 
   const SymbioButton({
     super.key,
@@ -17,6 +19,8 @@ class SymbioButton extends StatefulWidget {
     this.gradient,
     this.isLoading = false,
     this.outline = false,
+    this.padding,
+    this.fontSize = 13,
   });
 
   @override
@@ -67,7 +71,7 @@ class _SymbioButtonState extends State<SymbioButton> with SingleTickerProviderSt
             child: Opacity(
               opacity: isEnabled ? 1.0 : 0.6,
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                padding: widget.padding ?? const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   gradient: widget.outline ? null : LinearGradient(
@@ -106,7 +110,7 @@ class _SymbioButtonState extends State<SymbioButton> with SingleTickerProviderSt
                               widget.label.toUpperCase(),
                               style: TextStyle(
                                 color: widget.outline ? effectiveGradient.first : Colors.black,
-                                fontSize: 13,
+                                fontSize: widget.fontSize,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.5,
                               ),

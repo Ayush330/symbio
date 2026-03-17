@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class GlassContainer extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
   final double blur;
   final double opacity;
   final double borderRadius;
@@ -13,6 +14,7 @@ class GlassContainer extends StatelessWidget {
     super.key,
     required this.child,
     this.padding,
+    this.margin,
     this.blur = 10,
     this.opacity = 0.05,
     this.borderRadius = 24,
@@ -27,6 +29,7 @@ class GlassContainer extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
         child: Container(
           padding: padding,
+          margin: margin,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(opacity),
             borderRadius: BorderRadius.circular(borderRadius),

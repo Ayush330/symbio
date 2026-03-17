@@ -5,6 +5,8 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/symbio_button.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class InviteScreen extends StatefulWidget {
   const InviteScreen({super.key});
@@ -14,13 +16,126 @@ class InviteScreen extends StatefulWidget {
 }
 
 class _InviteScreenState extends State<InviteScreen> {
-  final _inputController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _isLoading = false;
   Map<String, dynamic>? _lookupResult;
 
-  void _handleLookup() async {
-    final query = _inputController.text.trim();
-    if (query.isEmpty) return;
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  String _cleanPhoneNumber(String phone) {
+    // Preserve + if present, but remove all other non-digit characters
+    final hasPlus = phone.startsWith('+');
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    return hasPlus ? '+$digits' : digits;
+  }
+
+  void _pickContact() async {
+    print('DEBUG: _pickContact started');
+    try {
+      final status = await Permission.contacts.request();
+      print('DEBUG: Contact permission status: $status');
+      
+      if (status.isGranted) {
+        print('DEBUG: Launching native picker via FlutterContacts.native.showPicker()');
+        final id = await FlutterContacts.native.showPicker();
+        print('DEBUG: Picker returned ID: $id');
+        
+        if (id != null) {
+          final fullContact = await FlutterContacts.get(id);
+          print('DEBUG: Full contact details: $fullContact');
+          
+          if (fullContact != null && fullContact.phones.isNotEmpty) {
+            if (fullContact.phones.length == 1) {
+              _onContactSelected(fullContact, fullContact.phones.first.number);
+            } else {
+              _showPhoneSelectionSheet(fullContact);
+            }
+          } else {
+            print('DEBUG: No phones found or contact fetch failed');
+          }
+        }
+      } else if (status.isPermanentlyDenied) {
+        print('DEBUG: Permission permanently denied');
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: SymbioTheme.surfaceGlass,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Contacts Permission', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              content: const Text('Please enable contacts permission in settings to pick a member.', style: TextStyle(color: Colors.white70)),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL', style: TextStyle(color: Colors.white54))),
+                TextButton(onPressed: () => openAppSettings(), child: const Text('SETTINGS', style: TextStyle(color: SymbioTheme.accentCyan))),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('DEBUG: Error in _pickContact: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Picker Error: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  void _showPhoneSelectionSheet(Contact contact) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => GlassContainer(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select Number for ${contact.displayName}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            ...contact.phones.map((phone) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.phone_rounded, color: SymbioTheme.accentCyan),
+                  title: Text(phone.number, style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(phone.label.toString().split('.').last.toUpperCase(),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _onContactSelected(contact, phone.number);
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onContactSelected(Contact contact, String rawPhone) {
+    final phone = _cleanPhoneNumber(rawPhone);
+    setState(() {
+      _phoneController.text = phone;
+      _emailController.clear();
+      _lookupResult = null;
+    });
+    _handleLookup(name: contact.displayName);
+  }
+
+  void _handleLookup({String? name}) async {
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    
+    if (email.isEmpty && phone.isEmpty) return;
 
     setState(() {
       _isLoading = true;
@@ -30,17 +145,18 @@ class _InviteScreenState extends State<InviteScreen> {
     try {
       final repo = context.read<FriendsRepository>();
       
-      // Basic detection for phone vs email
-      final isPhone = RegExp(r'^[\d\+\-\(\)\s]{7,}$').hasMatch(query);
-      
       final result = await repo.lookupUser(
-        !isPhone ? query : null,
-        phone: isPhone ? query : null,
+        email.isNotEmpty ? email : null,
+        phone: phone.isNotEmpty ? _cleanPhoneNumber(phone) : null,
       );
       
       if (mounted) {
         setState(() {
           _lookupResult = result;
+          // If result doesn't have a name but we have one from contact picker, keep it
+          if (_lookupResult!['exists'] == false && name != null) {
+            _lookupResult!['name'] = name;
+          }
           _isLoading = false;
         });
       }
@@ -55,17 +171,19 @@ class _InviteScreenState extends State<InviteScreen> {
   }
 
   void _handleInvite() async {
-    final query = _inputController.text.trim();
-    if (query.isEmpty) return;
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    
+    if (email.isEmpty && phone.isEmpty) return;
 
     setState(() => _isLoading = true);
     try {
       final repo = context.read<FriendsRepository>();
-      final isPhone = RegExp(r'^[\d\+\-\(\)\s]{7,}$').hasMatch(query);
       
       await repo.sendInvite(
-        email: !isPhone ? query : null,
-        phone: isPhone ? query : null,
+        email: email.isNotEmpty ? email : null,
+        phone: phone.isNotEmpty ? _cleanPhoneNumber(phone) : null,
+        name: _lookupResult?['name'],
       );
       
       if (mounted) {
@@ -159,13 +277,42 @@ class _InviteScreenState extends State<InviteScreen> {
                     child: Column(
                       children: [
                         TextField(
-                          controller: _inputController,
+                          controller: _emailController,
                           decoration: const InputDecoration(
-                            hintText: 'Enter email or phone number',
-                            prefixIcon: Icon(Icons.search_rounded, size: 20),
+                            hintText: 'Email Address',
+                            prefixIcon: Icon(Icons.email_outlined, size: 20),
                           ),
-                          keyboardType: TextInputType.text,
+                          keyboardType: TextInputType.emailAddress,
+                          onChanged: (val) {
+                            if (val.isNotEmpty && _phoneController.text.isNotEmpty) {
+                              setState(() => _phoneController.clear());
+                            }
+                          },
                           onSubmitted: (_) => _handleLookup(),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _phoneController,
+                          decoration: const InputDecoration(
+                            hintText: 'Phone Number',
+                            prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                          ),
+                          keyboardType: TextInputType.phone,
+                          onChanged: (val) {
+                            if (val.isNotEmpty && _emailController.text.isNotEmpty) {
+                              setState(() => _emailController.clear());
+                            }
+                          },
+                          onSubmitted: (_) => _handleLookup(),
+                        ),
+                        const SizedBox(height: 16),
+                        SymbioButton(
+                          onPressed: _pickContact,
+                          icon: Icons.contacts_rounded,
+                          label: 'PICK FROM CONTACTS',
+                          outline: true,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          fontSize: 11,
                         ),
                         const SizedBox(height: 20),
                         Row(

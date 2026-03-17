@@ -61,17 +61,6 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
         title: const Text('SYMBIO', style: TextStyle(letterSpacing: 6, fontWeight: FontWeight.w900, fontSize: 18)),
         actions: [
           IconButton(
-            onPressed: () => _showCommitmentPortal(context),
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: SymbioTheme.primaryBlue.withValues(alpha: 0.15),
-              ),
-              child: Icon(Icons.add, color: SymbioTheme.primaryBlue, size: 22),
-            ),
-          ),
-          IconButton(
             onPressed: () => _confirmLogout(context),
             icon: const Icon(Icons.logout_rounded, color: Colors.white38, size: 22),
           ),
@@ -465,13 +454,4 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     );
   }
 
-  void _showCommitmentPortal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black54,
-      builder: (context) => const CommitmentPortal(),
-    );
-  }
 }

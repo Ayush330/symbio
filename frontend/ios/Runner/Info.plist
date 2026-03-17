@@ -49,5 +49,7 @@
 		<true/>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
+		<key>NSContactsUsageDescription</key>
+		<string>Symbio needs access to your contacts to help you find and invite friends.</string>
 	</dict>
 </plist>
