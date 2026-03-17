@@ -16,10 +16,17 @@ class InviteScreen extends StatefulWidget {
 }
 
 class _InviteScreenState extends State<InviteScreen> {
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  late TextEditingController _emailController;
+  late TextEditingController _phoneController;
   bool _isLoading = false;
   Map<String, dynamic>? _lookupResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController();
+    _phoneController = TextEditingController();
+  }
 
   @override
   void dispose() {
@@ -29,9 +36,9 @@ class _InviteScreenState extends State<InviteScreen> {
   }
 
   String _cleanPhoneNumber(String phone) {
-    // Preserve + if present, but remove all other non-digit characters
-    final hasPlus = phone.startsWith('+');
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    final trimmed = phone.trim();
+    final hasPlus = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
     return hasPlus ? '+$digits' : digits;
   }
 
@@ -40,16 +47,18 @@ class _InviteScreenState extends State<InviteScreen> {
     try {
       final status = await Permission.contacts.request();
       print('DEBUG: Contact permission status: $status');
-      
+
       if (status.isGranted) {
         print('DEBUG: Launching native picker via FlutterContacts.native.showPicker()');
         final id = await FlutterContacts.native.showPicker();
         print('DEBUG: Picker returned ID: $id');
-        
+
         if (id != null) {
-          final fullContact = await FlutterContacts.get(id);
+          //final fullContact = await FlutterContacts.get(id);
+          //final fullContact = await FlutterContacts.getContact(id, withProperties: true);
+          final fullContact = await FlutterContacts.get(id, properties: ContactProperties.all);
           print('DEBUG: Full contact details: $fullContact');
-          
+
           if (fullContact != null && fullContact.phones.isNotEmpty) {
             if (fullContact.phones.length == 1) {
               _onContactSelected(fullContact, fullContact.phones.first.number);
@@ -68,11 +77,21 @@ class _InviteScreenState extends State<InviteScreen> {
             builder: (ctx) => AlertDialog(
               backgroundColor: KizunaTheme.surfaceGlass,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('Contacts Permission', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              content: const Text('Please enable contacts permission in settings to pick a member.', style: TextStyle(color: Colors.white70)),
+              title: const Text('Contacts Permission',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              content: const Text(
+                'Please enable contacts permission in settings to pick a member.',
+                style: TextStyle(color: Colors.white70),
+              ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL', style: TextStyle(color: Colors.white54))),
-                TextButton(onPressed: () => openAppSettings(), child: const Text('SETTINGS', style: TextStyle(color: KizunaTheme.accentCyan))),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+                ),
+                TextButton(
+                  onPressed: () => openAppSettings(),
+                  child: const Text('SETTINGS', style: TextStyle(color: KizunaTheme.accentCyan)),
+                ),
               ],
             ),
           );
@@ -108,8 +127,10 @@ class _InviteScreenState extends State<InviteScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.phone_rounded, color: KizunaTheme.accentCyan),
                   title: Text(phone.number, style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(phone.label.toString().split('.').last.toUpperCase(),
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10)),
+                  subtitle: Text(
+                    phone.label.toString().split('.').last.toUpperCase(),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10),
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     _onContactSelected(contact, phone.number);
@@ -121,20 +142,36 @@ class _InviteScreenState extends State<InviteScreen> {
     );
   }
 
-  void _onContactSelected(Contact contact, String rawPhone) {
+void _onContactSelected(Contact contact, String rawPhone) {
     final phone = _cleanPhoneNumber(rawPhone);
+    print('DEBUG: _onContactSelected: raw="$rawPhone", cleaned="$phone"');
+
+    if (phone.isEmpty) return;
+
+    // FIX 1: Put the controller updates inside setState so the screen reliably repaints.
+    // FIX 2: Do this BEFORE unfocusing the keyboard to prevent data from being overwritten.
     setState(() {
-      _phoneController.text = phone;
+      _phoneController.value = TextEditingValue(
+        text: phone,
+        selection: TextSelection.collapsed(offset: phone.length),
+      );
       _emailController.clear();
       _lookupResult = null;
     });
-    _handleLookup(name: contact.displayName);
+
+    // Now that the text is safely set, we can dismiss the keyboard.
+    FocusScope.of(context).unfocus();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _handleLookup(name: contact.displayName);
+    });
   }
+
 
   void _handleLookup({String? name}) async {
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
-    
+
     if (email.isEmpty && phone.isEmpty) return;
 
     setState(() {
@@ -144,16 +181,15 @@ class _InviteScreenState extends State<InviteScreen> {
 
     try {
       final repo = context.read<FriendsRepository>();
-      
+
       final result = await repo.lookupUser(
         email.isNotEmpty ? email : null,
         phone: phone.isNotEmpty ? _cleanPhoneNumber(phone) : null,
       );
-      
+
       if (mounted) {
         setState(() {
           _lookupResult = result;
-          // If result doesn't have a name but we have one from contact picker, keep it
           if (_lookupResult!['exists'] == false && name != null) {
             _lookupResult!['name'] = name;
           }
@@ -170,36 +206,16 @@ class _InviteScreenState extends State<InviteScreen> {
     }
   }
 
-  void _handleInvite() async {
-    final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
+  void _shareInvite() {
+    const packageName = 'com.symbio.symbiosis_app';
+    const playStoreLink = 'https://play.google.com/store/apps/details?id=$packageName';
     
-    if (email.isEmpty && phone.isEmpty) return;
-
-    setState(() => _isLoading = true);
-    try {
-      final repo = context.read<FriendsRepository>();
-      
-      await repo.sendInvite(
-        email: email.isNotEmpty ? email : null,
-        phone: phone.isNotEmpty ? _cleanPhoneNumber(phone) : null,
-        name: _lookupResult?['name'],
-      );
-      
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invitation sent!'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invite Error: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
-    }
+    SharePlus.instance.share(
+      ShareParams(
+        text: 'Hey! Join me on Kizuna, the social integrity ledger. Download it here: $playStoreLink',
+        title: 'Join me on Kizuna!',
+      ),
+    );
   }
 
   void _sendFriendRequest(String targetId) async {
@@ -221,15 +237,6 @@ class _InviteScreenState extends State<InviteScreen> {
         );
       }
     }
-  }
-
-  void _shareInvite() {
-    SharePlus.instance.share(
-      ShareParams(
-        text: 'Hey! Connect with me on Kizuna, the social integrity ledger. Download here: https://kizuna.app',
-        title: 'Join me on Kizuna!',
-      ),
-    );
   }
 
   @override
@@ -283,8 +290,11 @@ class _InviteScreenState extends State<InviteScreen> {
                           ),
                           keyboardType: TextInputType.emailAddress,
                           onChanged: (val) {
-                            if (val.isNotEmpty && _phoneController.text.isNotEmpty) {
-                              setState(() => _phoneController.clear());
+                            if (val.isNotEmpty) {
+                              setState(() {
+                                _phoneController.clear();
+                                _lookupResult = null;
+                              });
                             }
                           },
                           onSubmitted: (_) => _handleLookup(),
@@ -298,8 +308,11 @@ class _InviteScreenState extends State<InviteScreen> {
                           ),
                           keyboardType: TextInputType.phone,
                           onChanged: (val) {
-                            if (val.isNotEmpty && _emailController.text.isNotEmpty) {
-                              setState(() => _emailController.clear());
+                            if (val.isNotEmpty) {
+                              setState(() {
+                                _emailController.clear();
+                                _lookupResult = null;
+                              });
                             }
                           },
                           onSubmitted: (_) => _handleLookup(),
@@ -314,27 +327,11 @@ class _InviteScreenState extends State<InviteScreen> {
                           fontSize: 11,
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: KizunaButton(
-                                onPressed: _handleLookup,
-                                isLoading: _isLoading,
-                                label: 'SEARCH KIZUNA',
-                                icon: Icons.search_rounded,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: KizunaButton(
-                                onPressed: _handleInvite,
-                                isLoading: _isLoading,
-                                label: 'SEND INVITE',
-                                icon: Icons.send_rounded,
-                                outline: true,
-                              ),
-                            ),
-                          ],
+                        KizunaButton(
+                          onPressed: _handleLookup,
+                          isLoading: _isLoading,
+                          label: 'SEARCH KIZUNA',
+                          icon: Icons.search_rounded,
                         ),
                       ],
                     ),
@@ -371,17 +368,17 @@ class _InviteScreenState extends State<InviteScreen> {
             const SizedBox(height: 16),
             Text(
               '${_lookupResult!['name'] ?? 'User'} is on Kizuna!',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
             ),
             if (_emailController.text.isNotEmpty || _phoneController.text.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 _emailController.text.isNotEmpty ? _emailController.text : _phoneController.text,
-                style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.3), fontStyle: FontStyle.italic),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontStyle: FontStyle.italic),
               ),
             ],
             const SizedBox(height: 8),
@@ -426,26 +423,23 @@ class _InviteScreenState extends State<InviteScreen> {
             const SizedBox(height: 4),
             Text(
               _emailController.text.isNotEmpty ? _emailController.text : _phoneController.text,
-              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.3), fontStyle: FontStyle.italic),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white.withValues(alpha: 0.3),
+                  fontStyle: FontStyle.italic),
             ),
           ],
           const SizedBox(height: 8),
           Text(
-            'Share an invite link so they can join you.',
+            'Share an invite link via WhatsApp or other apps so they can join you.',
             style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
           KizunaButton(
-            onPressed: _handleInvite,
-            icon: Icons.mark_email_read_rounded,
-            label: 'SEND FORMAL INVITE',
-          ),
-          const SizedBox(height: 12),
-          TextButton.icon(
             onPressed: _shareInvite,
-            icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white38),
-            label: const Text('SHARE LINK INSTEAD', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            icon: Icons.share_rounded,
+            label: 'SHARE INVITE LINK',
           ),
         ],
       ),

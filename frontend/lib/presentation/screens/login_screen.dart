@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../blocs/auth_bloc.dart';
 import '../widgets/glass_container.dart';
 import '../../core/theme/app_theme.dart';
@@ -18,6 +20,81 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLogin = true;
+
+  String _cleanPhoneNumber(String phone) {
+    final trimmed = phone.trim();
+    final hasPlus = trimmed.startsWith('+');
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    return hasPlus ? '+$digits' : digits;
+  }
+
+  void _pickContact() async {
+    try {
+      final status = await Permission.contacts.request();
+      if (status.isGranted) {
+        final id = await FlutterContacts.native.showPicker();
+        if (id != null) {
+          final fullContact = await FlutterContacts.get(id);
+          if (fullContact != null && fullContact.phones.isNotEmpty) {
+            if (fullContact.phones.length == 1) {
+              _onContactSelected(fullContact.phones.first.number);
+            } else {
+              _showPhoneSelectionSheet(fullContact);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('DEBUG: Error in _pickContact: $e');
+    }
+  }
+
+  void _showPhoneSelectionSheet(Contact contact) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => GlassContainer(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select Number for ${contact.displayName}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            ...contact.phones.map((phone) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.phone_rounded, color: KizunaTheme.accentCyan),
+                  title: Text(phone.number, style: const TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _onContactSelected(phone.number);
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onContactSelected(String rawPhone) {
+    final phone = _cleanPhoneNumber(rawPhone);
+    print('DEBUG: LoginScreen _onContactSelected: $phone');
+    if (mounted) {
+      FocusScope.of(context).unfocus();
+      setState(() {
+        _phoneController.text = phone;
+        _emailController.clear();
+        
+        _phoneController.selection = TextSelection.fromPosition(
+          TextPosition(offset: phone.length),
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +169,17 @@ class _LoginScreenState extends State<LoginScreen> {
                               prefixIcon: Icon(Icons.phone_outlined),
                             ),
                             keyboardType: TextInputType.phone,
+                            onChanged: (val) {
+                              if (val.isNotEmpty) {
+                                setState(() => _emailController.clear());
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextButton.icon(
+                            onPressed: _pickContact,
+                            icon: const Icon(Icons.contacts_rounded, size: 16, color: KizunaTheme.accentCyan),
+                            label: const Text('PICK FROM CONTACTS', style: TextStyle(color: KizunaTheme.accentCyan, fontSize: 11)),
                           ),
                           const SizedBox(height: 16),
                         ],
@@ -102,6 +190,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             prefixIcon: Icon(Icons.email_outlined),
                           ),
                           keyboardType: TextInputType.emailAddress,
+                          onChanged: (val) {
+                            if (val.isNotEmpty) {
+                              setState(() => _phoneController.clear());
+                            }
+                          },
                         ),
                         const SizedBox(height: 16),
                         TextField(

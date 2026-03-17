@@ -106,13 +106,18 @@ class _KizunaButtonState extends State<KizunaButton> with SingleTickerProviderSt
                                   size: 20, color: widget.outline ? effectiveGradient.first : Colors.black),
                               const SizedBox(width: 10),
                             ],
-                            Text(
-                              widget.label.toUpperCase(),
-                              style: TextStyle(
-                                color: widget.outline ? effectiveGradient.first : Colors.black,
-                                fontSize: widget.fontSize,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  widget.label.toUpperCase(),
+                                  style: TextStyle(
+                                    color: widget.outline ? effectiveGradient.first : Colors.black,
+                                    fontSize: widget.fontSize,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
