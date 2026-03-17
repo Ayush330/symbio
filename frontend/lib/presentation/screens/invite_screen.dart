@@ -4,7 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
 import '../widgets/glass_container.dart';
-import '../widgets/symbio_button.dart';
+import '../widgets/kizuna_button.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -66,13 +66,13 @@ class _InviteScreenState extends State<InviteScreen> {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              backgroundColor: SymbioTheme.surfaceGlass,
+              backgroundColor: KizunaTheme.surfaceGlass,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               title: const Text('Contacts Permission', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               content: const Text('Please enable contacts permission in settings to pick a member.', style: TextStyle(color: Colors.white70)),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL', style: TextStyle(color: Colors.white54))),
-                TextButton(onPressed: () => openAppSettings(), child: const Text('SETTINGS', style: TextStyle(color: SymbioTheme.accentCyan))),
+                TextButton(onPressed: () => openAppSettings(), child: const Text('SETTINGS', style: TextStyle(color: KizunaTheme.accentCyan))),
               ],
             ),
           );
@@ -106,7 +106,7 @@ class _InviteScreenState extends State<InviteScreen> {
             const SizedBox(height: 16),
             ...contact.phones.map((phone) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.phone_rounded, color: SymbioTheme.accentCyan),
+                  leading: const Icon(Icons.phone_rounded, color: KizunaTheme.accentCyan),
                   title: Text(phone.number, style: const TextStyle(color: Colors.white)),
                   subtitle: Text(phone.label.toString().split('.').last.toUpperCase(),
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10)),
@@ -226,9 +226,8 @@ class _InviteScreenState extends State<InviteScreen> {
   void _shareInvite() {
     SharePlus.instance.share(
       ShareParams(
-        text: 'Hey! Join me on Symbio — a trust ledger for real relationships. '
-            'Download it here: https://symbio.app/invite',
-        title: 'Join me on Symbio!',
+        text: 'Hey! Connect with me on Kizuna, the social integrity ledger. Download here: https://kizuna.app',
+        title: 'Join me on Kizuna!',
       ),
     );
   }
@@ -242,7 +241,7 @@ class _InviteScreenState extends State<InviteScreen> {
       ),
       body: Stack(
         children: [
-          Positioned.fill(child: Container(color: SymbioTheme.backgroundBlack)),
+          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
           Positioned(
             top: -50,
             right: -30,
@@ -251,7 +250,7 @@ class _InviteScreenState extends State<InviteScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.accentCyan.withValues(alpha: 0.05),
+                color: KizunaTheme.accentCyan.withValues(alpha: 0.05),
               ),
             ),
           ),
@@ -268,7 +267,7 @@ class _InviteScreenState extends State<InviteScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Search for someone on Symbio or invite them to join you.',
+                    'Search for someone on Kizuna or invite them to join you.',
                     style: TextStyle(color: Colors.white.withValues(alpha: 0.4), height: 1.5),
                   ),
                   const SizedBox(height: 40),
@@ -306,7 +305,7 @@ class _InviteScreenState extends State<InviteScreen> {
                           onSubmitted: (_) => _handleLookup(),
                         ),
                         const SizedBox(height: 16),
-                        SymbioButton(
+                        KizunaButton(
                           onPressed: _pickContact,
                           icon: Icons.contacts_rounded,
                           label: 'PICK FROM CONTACTS',
@@ -318,19 +317,19 @@ class _InviteScreenState extends State<InviteScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: SymbioButton(
+                              child: KizunaButton(
                                 onPressed: _handleLookup,
                                 isLoading: _isLoading,
-                                label: 'SEARCH',
+                                label: 'SEARCH KIZUNA',
                                 icon: Icons.search_rounded,
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: SymbioButton(
+                              child: KizunaButton(
                                 onPressed: _handleInvite,
                                 isLoading: _isLoading,
-                                label: 'INVITE',
+                                label: 'SEND INVITE',
                                 icon: Icons.send_rounded,
                                 outline: true,
                               ),
@@ -371,13 +370,20 @@ class _InviteScreenState extends State<InviteScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              '${_lookupResult!['name'] ?? 'User'} is on Symbio!',
+              '${_lookupResult!['name'] ?? 'User'} is on Kizuna!',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
             ),
+            if (_emailController.text.isNotEmpty || _phoneController.text.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                _emailController.text.isNotEmpty ? _emailController.text : _phoneController.text,
+                style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.3), fontStyle: FontStyle.italic),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               'Send them a friend request to start building your trust ledger together.',
@@ -385,7 +391,7 @@ class _InviteScreenState extends State<InviteScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            SymbioButton(
+            KizunaButton(
               onPressed: () => _sendFriendRequest(_lookupResult!['user_id']),
               isLoading: _isLoading,
               icon: Icons.person_add,
@@ -405,17 +411,24 @@ class _InviteScreenState extends State<InviteScreen> {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: SymbioTheme.primaryBlue.withValues(alpha: 0.1),
-              border: Border.all(color: SymbioTheme.primaryBlue.withValues(alpha: 0.3)),
+              color: KizunaTheme.primaryBlue.withValues(alpha: 0.1),
+              border: Border.all(color: KizunaTheme.primaryBlue.withValues(alpha: 0.3)),
             ),
-            child: Icon(Icons.person_add_alt_1, color: SymbioTheme.primaryBlue, size: 32),
+            child: Icon(Icons.person_add_alt_1, color: KizunaTheme.primaryBlue, size: 32),
           ),
           const SizedBox(height: 16),
           const Text(
-            'Not on Symbio yet',
+            'Not on Kizuna yet',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
+          if (_emailController.text.isNotEmpty || _phoneController.text.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              _emailController.text.isNotEmpty ? _emailController.text : _phoneController.text,
+              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.3), fontStyle: FontStyle.italic),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(
             'Share an invite link so they can join you.',
@@ -423,7 +436,7 @@ class _InviteScreenState extends State<InviteScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
-          SymbioButton(
+          KizunaButton(
             onPressed: _handleInvite,
             icon: Icons.mark_email_read_rounded,
             label: 'SEND FORMAL INVITE',

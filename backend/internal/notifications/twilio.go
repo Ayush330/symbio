@@ -30,7 +30,7 @@ func NewTwilioService() (*TwilioService, error) {
 }
 
 func (s *TwilioService) SendInvite(toNumber string, inviterName string) error {
-	msg := fmt.Sprintf("Hey! %s has invited you to join Symbio. Sign up here: https://symbio.app", inviterName)
+	msg := fmt.Sprintf("Hey! %s has invited you to join Kizuna. Sign up here: https://kizuna.app", inviterName)
 	
 	params := &twilioApi.CreateMessageParams{}
 	params.SetTo(toNumber)

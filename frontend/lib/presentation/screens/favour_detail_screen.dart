@@ -15,7 +15,7 @@ class FavourDetailScreen extends StatelessWidget {
       ),
       body: Stack(
         children: [
-          Positioned.fill(child: Container(color: SymbioTheme.backgroundBlack)),
+          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: GlassContainer(
@@ -26,7 +26,7 @@ class FavourDetailScreen extends StatelessWidget {
                 children: [
                   Text(
                     favour['category']?.toUpperCase() ?? 'OTHER',
-                    style: const TextStyle(color: SymbioTheme.primaryBlue, fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 12),
+                    style: const TextStyle(color: KizunaTheme.primaryBlue, fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 12),
                   ),
                   const SizedBox(height: 16),
                   Text(

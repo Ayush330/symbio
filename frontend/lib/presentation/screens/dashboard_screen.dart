@@ -8,14 +8,14 @@ import '../../data/repositories/friends_repository.dart';
 import '../widgets/glass_container.dart';
 import 'commitment_portal.dart';
 
-class SymbiosisDashboard extends StatefulWidget {
+class KizunaDashboard extends StatefulWidget {
   const SymbiosisDashboard({super.key});
 
   @override
-  State<SymbiosisDashboard> createState() => _SymbiosisDashboardState();
+  State<KizunaDashboard> createState() => _KizunaDashboardState();
 }
 
-class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProviderStateMixin {
+class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderStateMixin {
   late AnimationController _scoreGlow;
   late Animation<double> _glowAnim;
   ProfileStats? _stats;
@@ -58,7 +58,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('SYMBIO', style: TextStyle(letterSpacing: 6, fontWeight: FontWeight.w900, fontSize: 18)),
+        title: const Text('KIZUNA', style: TextStyle(letterSpacing: 6, fontWeight: FontWeight.w900, fontSize: 18)),
         actions: [
           IconButton(
             onPressed: () => _confirmLogout(context),
@@ -69,7 +69,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
       body: Stack(
         children: [
           // Ambient background orbs
-          Positioned.fill(child: Container(color: SymbioTheme.backgroundBlack)),
+          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
           Positioned(
             top: -120,
             right: -80,
@@ -79,7 +79,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
-                  SymbioTheme.primaryBlue.withValues(alpha: 0.06),
+                  KizunaTheme.primaryBlue.withValues(alpha: 0.06),
                   Colors.transparent,
                 ]),
               ),
@@ -94,7 +94,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
-                  SymbioTheme.accentCyan.withValues(alpha: 0.04),
+                  KizunaTheme.accentCyan.withValues(alpha: 0.04),
                   Colors.transparent,
                 ]),
               ),
@@ -112,7 +112,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
-                      _buildReciprocityHeart(state.reciprocityScore),
+                      _buildReciprocityHeart(state.reciprocityScore, _stats?.karmaScore ?? 1.0),
                       const SizedBox(height: 32),
                       Expanded(
                         child: _isLoadingStats
@@ -132,18 +132,15 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     );
   }
 
-  Widget _buildReciprocityHeart(double score) {
-    Color heartColor;
+  Widget _buildReciprocityHeart(double reciprocityScore, double karmaScore) {
+    Color heartColor = KizunaTheme.getKarmaColor(karmaScore);
     String status;
 
-    if (score > 60) {
-      heartColor = const Color(0xFF00E676); // Healthy Green
+    if (reciprocityScore > 60) {
       status = 'PROVIDER';
-    } else if (score >= 40) {
-      heartColor = SymbioTheme.primaryBlue; // Balanced Blue
+    } else if (reciprocityScore >= 40) {
       status = 'BALANCED';
     } else {
-      heartColor = const Color(0xFFFF9100); // Indebted Orange/Red
       status = 'RECEIVER';
     }
 
@@ -257,9 +254,9 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.primaryBlue.withValues(alpha: 0.1),
+                color: KizunaTheme.primaryBlue.withValues(alpha: 0.1),
               ),
-              child: Icon(Icons.auto_awesome_outlined, color: SymbioTheme.primaryBlue, size: 20),
+              child: Icon(Icons.auto_awesome_outlined, color: KizunaTheme.primaryBlue, size: 20),
             ),
             const SizedBox(width: 16),
             const Text('KARMA ALGO', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
@@ -269,17 +266,20 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildAlgoRule('💚', 'PROVIDER', 'Score > 60. You are a social legend! You have given more than you have taken. Go ahead, ask for a favour!'),
+            const Text(
+              'Your Karma Score represents your total social contribution based on favours and points, with diminishing returns as you grow.',
+              style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            _buildAlgoRule('📈', 'GROWTH', 'Every favor adds to your score, but early efforts count more. It gets harder to reach 100!'),
             const SizedBox(height: 16),
-            _buildAlgoRule('💙', 'BALANCED', 'Score 40-60. Perfect symbiosis. You are in harmony with your tribe.'),
-            const SizedBox(height: 16),
-            _buildAlgoRule('🟠', 'RECEIVER', 'Score < 40. You are currently indebted. Your social credit is low—time to give back and earn some karma points!'),
+            _buildAlgoRule('⚖️', 'RECIPROCITY', 'Your status (Provider/Receiver) shows whether you have given more than you have taken lately.'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('GOT IT', style: TextStyle(color: SymbioTheme.primaryBlue, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            child: Text('GOT IT', style: TextStyle(color: KizunaTheme.primaryBlue, fontWeight: FontWeight.bold, letterSpacing: 1)),
           ),
         ],
       ),
@@ -361,13 +361,13 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: SymbioTheme.primaryBlue.withValues(alpha: 0.05),
+        color: KizunaTheme.primaryBlue.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: SymbioTheme.primaryBlue.withValues(alpha: 0.1)),
+        border: Border.all(color: KizunaTheme.primaryBlue.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: SymbioTheme.primaryBlue, size: 20),
+          Icon(Icons.info_outline, color: KizunaTheme.primaryBlue, size: 20),
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
@@ -394,9 +394,9 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: SymbioTheme.primaryBlue.withValues(alpha: 0.15),
+                  color: KizunaTheme.primaryBlue.withValues(alpha: 0.15),
                 ),
-                child: Icon(Icons.handshake_outlined, color: SymbioTheme.primaryBlue, size: 22),
+                child: Icon(Icons.handshake_outlined, color: KizunaTheme.primaryBlue, size: 22),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -418,7 +418,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
         actions: [
           TextButton(
             onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
-            child: Text('ACCEPT', style: TextStyle(color: SymbioTheme.primaryBlue, fontWeight: FontWeight.bold)),
+            child: Text('ACCEPT', style: TextStyle(color: KizunaTheme.primaryBlue, fontWeight: FontWeight.bold)),
           ),
           TextButton(
             onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
@@ -433,7 +433,7 @@ class _SymbiosisDashboardState extends State<SymbiosisDashboard> with TickerProv
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SymbioTheme.surfaceGlass,
+        backgroundColor: KizunaTheme.surfaceGlass,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.white10)),
         title: const Text('Logout', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: const Text('Are you sure you want to log out?', style: TextStyle(color: Colors.white70)),

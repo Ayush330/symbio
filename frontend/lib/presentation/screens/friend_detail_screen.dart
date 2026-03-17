@@ -46,12 +46,6 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     }
   }
 
-  Color get _healthColor {
-    if (widget.health > 50) return const Color(0xFF00E676);
-    if (widget.health > 0) return const Color(0xFFFFD740);
-    if (widget.health > -30) return const Color(0xFFFF9100);
-    return const Color(0xFFFF5252);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,22 +98,22 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
         children: [
           Icon(
             Icons.favorite,
-            color: _healthColor,
+            color: KizunaTheme.getKarmaColor(widget.health),
             size: 80,
             shadows: [
               Shadow(
-                color: _healthColor.withOpacity(0.5),
+                color: SymbioTheme.getKarmaColor(widget.health).withOpacity(0.5),
                 blurRadius: 40,
               ),
             ],
           ),
           const SizedBox(height: 16),
           Text(
-            widget.health.toStringAsFixed(1),
+            widget.health.toStringAsFixed(0),
             style: TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.w900,
-              color: _healthColor,
+              color: KizunaTheme.getKarmaColor(widget.health),
               letterSpacing: -2,
             ),
           ),
@@ -138,7 +132,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
             icon: const Icon(Icons.add, color: Colors.black),
             label: const Text('CREATE FAVOUR'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: SymbioTheme.primaryBlue,
+              backgroundColor: KizunaTheme.primaryBlue,
               foregroundColor: Colors.black,
             ),
           ),
@@ -173,16 +167,16 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SymbioTheme.surfaceGlass,
+        backgroundColor: KizunaTheme.surfaceGlass,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: SymbioTheme.primaryBlue.withOpacity(0.2)),
+          side: BorderSide(color: KizunaTheme.primaryBlue.withOpacity(0.2)),
         ),
         title: const Text('CLASSIFICATION', style: TextStyle(color: Colors.white, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(category.toUpperCase(), style: const TextStyle(color: SymbioTheme.primaryBlue, fontSize: 24, fontWeight: FontWeight.w900)),
+            Text(category.toUpperCase(), style: const TextStyle(color: KizunaTheme.primaryBlue, fontSize: 24, fontWeight: FontWeight.w900)),
             const SizedBox(height: 8),
             Text('+$points POINTS', style: const TextStyle(color: Colors.white70, fontSize: 14)),
             const SizedBox(height: 16),
@@ -196,7 +190,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
               Navigator.pop(ctx);
               _submitFavour(text, category, points);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: SymbioTheme.primaryBlue, foregroundColor: Colors.black),
+            style: ElevatedButton.styleFrom(backgroundColor: KizunaTheme.primaryBlue, foregroundColor: Colors.black),
             child: const Text('CONFIRM'),
           ),
         ],
@@ -227,7 +221,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: SymbioTheme.surfaceGlass,
+        backgroundColor: KizunaTheme.surfaceGlass,
         title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
         content: TextField(
           controller: controller,
@@ -244,7 +238,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
               Navigator.pop(context);
               _handleClassification(text);
             },
-            child: const Text('NEXT', style: TextStyle(color: SymbioTheme.primaryBlue)),
+            child: const Text('NEXT', style: TextStyle(color: KizunaTheme.primaryBlue)),
           ),
         ],
       ),

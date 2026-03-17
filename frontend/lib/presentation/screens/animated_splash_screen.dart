@@ -69,7 +69,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: SymbioTheme.backgroundBlack,
+      backgroundColor: KizunaTheme.backgroundBlack,
       body: Stack(
         alignment: Alignment.center,
         children: [
@@ -81,7 +81,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     colors: [
-                      SymbioTheme.primaryBlue.withValues(alpha: 0.05 * _opacityAnimation.value),
+                      KizunaTheme.primaryBlue.withValues(alpha: 0.05 * _opacityAnimation.value),
                       Colors.transparent,
                     ],
                     radius: 1.5 * _scaleAnimation.value,
@@ -118,7 +118,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: SymbioTheme.primaryBlue.withValues(alpha: 0.2 * _opacityAnimation.value),
+                                  color: KizunaTheme.primaryBlue.withValues(alpha: 0.2 * _opacityAnimation.value),
                                   blurRadius: 40,
                                   spreadRadius: 10,
                                 ),
@@ -148,7 +148,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
               child: Column(
                 children: [
                   Text(
-                    'SYMBIO',
+                    'KIZUNA',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -156,7 +156,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                       letterSpacing: 12,
                       shadows: [
                         Shadow(
-                          color: SymbioTheme.primaryBlue.withValues(alpha: 0.5),
+                          color: KizunaTheme.primaryBlue.withValues(alpha: 0.5),
                           blurRadius: 10,
                         ),
                       ],
@@ -166,7 +166,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                   Container(
                     width: 40,
                     height: 1,
-                    color: SymbioTheme.primaryBlue.withValues(alpha: 0.3),
+                    color: KizunaTheme.primaryBlue.withValues(alpha: 0.3),
                   ),
                 ],
               ),

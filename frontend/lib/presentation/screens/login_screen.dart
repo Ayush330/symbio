@@ -51,19 +51,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      gradient: SymbioTheme.primaryGradient,
+                      gradient: KizunaTheme.primaryGradient,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(Icons.sync_alt, size: 32, color: Colors.black),
                   ),
                   const SizedBox(height: 32),
                   Text(
-                    _isLogin ? 'Welcome Back' : 'Join Symbio',
-                    style: Theme.of(context).textTheme.headlineLarge,
+                    _isLogin ? 'Welcome Back' : 'Join Kizuna',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -1.5,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
-                    _isLogin ? 'Sign in to your account' : 'Start your symbiosis journey',
+                    _isLogin ? 'Sign in to your account' : 'Start your Kizuna journey',
                     style: TextStyle(color: Colors.white.withOpacity(0.5)),
                   ),
                   const SizedBox(height: 48),
@@ -120,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Text(
                           'Forgot Password?',
-                          style: TextStyle(color: SymbioTheme.primaryBlue.withOpacity(0.8)),
+                          style: TextStyle(color: KizunaTheme.primaryBlue.withOpacity(0.8)),
                         ),
                       ),
                     ),
@@ -144,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                           boxShadow: [
                             BoxShadow(
-                              color: SymbioTheme.primaryBlue.withOpacity(0.2),
+                              color: KizunaTheme.primaryBlue.withOpacity(0.2),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -191,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             TextSpan(
                               text: _isLogin ? 'Sign Up' : 'Sign In',
                               style: TextStyle(
-                                color: SymbioTheme.primaryBlue,
+                                color: KizunaTheme.primaryBlue,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

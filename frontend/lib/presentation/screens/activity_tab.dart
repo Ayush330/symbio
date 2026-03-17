@@ -46,7 +46,7 @@ class _ActivityTabState extends State<ActivityTab> {
       ),
       body: Stack(
         children: [
-          Positioned.fill(child: Container(color: SymbioTheme.backgroundBlack)),
+          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
           if (_isLoading)
             const Center(child: CircularProgressIndicator())
           else if (_graphData.isEmpty)
@@ -107,7 +107,7 @@ class _ActivityTabState extends State<ActivityTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(data.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              Text('${data.points} pts', style: const TextStyle(color: SymbioTheme.primaryBlue, fontWeight: FontWeight.w900, fontSize: 12)),
+              Text('${data.points} pts', style: const TextStyle(color: KizunaTheme.primaryBlue, fontWeight: FontWeight.w900, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 8),
@@ -126,10 +126,10 @@ class _ActivityTabState extends State<ActivityTab> {
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [SymbioTheme.primaryBlue, SymbioTheme.accentCyan]),
+                    gradient: LinearGradient(colors: [KizunaTheme.primaryBlue, KizunaTheme.accentCyan]),
                     borderRadius: BorderRadius.circular(4),
                     boxShadow: [
-                      BoxShadow(color: SymbioTheme.primaryBlue.withOpacity(0.3), blurRadius: 8),
+                      BoxShadow(color: KizunaTheme.primaryBlue.withOpacity(0.3), blurRadius: 8),
                     ],
                   ),
                 ),

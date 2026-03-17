@@ -53,20 +53,20 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SymbioTheme.surfaceGlass,
+        backgroundColor: KizunaTheme.surfaceGlass,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: SymbioTheme.primaryBlue.withOpacity(0.2)),
+          borderRadius: BorderRadius.circular(28),
+          side: BorderSide(color: KizunaTheme.primaryBlue.withOpacity(0.2)),
         ),
-        title: Column(
+        title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.primaryBlue.withOpacity(0.1),
+                color: KizunaTheme.primaryBlue.withOpacity(0.1),
               ),
-              child: Icon(Icons.psychology_outlined, color: SymbioTheme.primaryBlue, size: 32),
+              child: Icon(Icons.psychology_outlined, color: KizunaTheme.primaryBlue, size: 32),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -81,7 +81,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
             Text(
               category.toUpperCase(),
               style: TextStyle(
-                color: SymbioTheme.primaryBlue,
+                color: KizunaTheme.primaryBlue,
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1,
@@ -111,7 +111,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
               _submitFavour();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: SymbioTheme.primaryBlue,
+              backgroundColor: KizunaTheme.primaryBlue,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
@@ -195,7 +195,7 @@ class _CommitmentPortalState extends State<CommitmentPortal> {
             TextField(
               controller: _targetUserController,
               decoration: const InputDecoration(
-                hintText: 'partner@symbio.com',
+                hintText: 'partner@kizuna.app',
                 prefixIcon: Icon(Icons.alternate_email, size: 20),
               ),
             ),

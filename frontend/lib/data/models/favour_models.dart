@@ -35,10 +35,9 @@ class Favour {
 class RelationshipStats {
   final double score;
   final String color;
-  final int totalGiven;
-  final int totalReceived;
   final int pointsGiven;
   final int pointsReceived;
+  final double karmaScore;
 
   RelationshipStats({
     required this.score,
@@ -47,6 +46,7 @@ class RelationshipStats {
     required this.totalReceived,
     required this.pointsGiven,
     required this.pointsReceived,
+    required this.karmaScore,
   });
 
   factory RelationshipStats.fromJson(Map<String, dynamic> json) {
@@ -57,32 +57,23 @@ class RelationshipStats {
       totalReceived: json['total_received'],
       pointsGiven: json['points_given'],
       pointsReceived: json['points_received'],
+      karmaScore: (json['karma_score'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
-  Color get uiColor {
-    switch (color) {
-      case 'green':
-        return Colors.green;
-      case 'red':
-        return Colors.red;
-      default:
-        return Colors.yellow;
-    }
-  }
 }
 
 class ProfileStats {
-  final int totalFavoursGiven;
-  final int totalFavoursReceived;
   final int totalPointsGiven;
   final int totalPointsReceived;
+  final double karmaScore;
 
   ProfileStats({
     required this.totalFavoursGiven,
     required this.totalFavoursReceived,
     required this.totalPointsGiven,
     required this.totalPointsReceived,
+    required this.karmaScore,
   });
 
   factory ProfileStats.fromJson(Map<String, dynamic> json) {
@@ -91,6 +82,7 @@ class ProfileStats {
       totalFavoursReceived: json['total_favours_received'],
       totalPointsGiven: json['total_points_given'],
       totalPointsReceived: json['total_points_received'],
+      karmaScore: (json['karma_score'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }

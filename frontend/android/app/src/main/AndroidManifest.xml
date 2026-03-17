@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
     
     <application
-        android:label="symbiosis_app"
+        android:label="Kizuna"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

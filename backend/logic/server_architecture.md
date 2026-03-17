@@ -1,6 +1,6 @@
-# Symbio Server Architecture Overview (WS-Centric)
+# Kizuna Server Architecture Overview (WS-Centric)
 
-Symbio is built as a highly-trust, real-time social integrity ledger. The backend uses **REST for Authentication** and **WebSockets for all business actions**.
+Kizuna is built as a highly-trust, real-time social integrity ledger. The backend uses **REST for Authentication** and **WebSockets for all business actions**.
 
 ## Core Architectural Patterns
 
@@ -10,7 +10,7 @@ Except for the initial authentication (Login/Signup), all client-to-server and s
 - **Message Protocol**: All messages are JSON-encoded with a `type` and `data` payload.
 
 ### 2. Transactional Outbox Pattern
-To ensure atomicity between database updates and event notifications (Kafka), Symbio uses an **Outbox Pattern**.
+To ensure atomicity between database updates and event notifications (Kafka), Kizuna uses an **Outbox Pattern**.
 - **The Flow**: When a business action occurs via WebSocket, the service performs the DB update AND inserts an event into the `outbox_events` table within a single transaction.
 - **The Relay**: A background worker publishes events to Kafka, ensuring reliability.
 

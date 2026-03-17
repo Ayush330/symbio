@@ -28,8 +28,8 @@ void main() async {
 
   if (kReleaseMode) {
     // Production (APK/Release Build)
-    baseUrl = 'https://symbio.anandayush.in';
-    wsUrl = 'wss://symbio.anandayush.in/ws';
+    baseUrl = 'https://kizuna.anandayush.in';
+    wsUrl = 'wss://kizuna.anandayush.in/ws';
   } else {
     // Development (Debug Mode / Run)
     baseUrl = 'http://192.168.1.10:8080';
@@ -59,7 +59,7 @@ void main() async {
   final notificationService = NotificationService(authRepository: authRepository);
   notificationService.initialize(); // Run in background
 
-  runApp(SymbioApp(
+  runApp(KizunaApp(
     authBloc: authBloc,
     authRepository: authRepository,
     commitmentRepository: commitmentRepository,
@@ -69,7 +69,7 @@ void main() async {
   ));
 }
 
-class SymbioApp extends StatelessWidget {
+class KizunaApp extends StatelessWidget {
   final AuthBloc authBloc;
   final AuthRepository authRepository;
   final CommitmentRepository commitmentRepository;
@@ -77,7 +77,7 @@ class SymbioApp extends StatelessWidget {
   final FriendsRepository friendsRepository;
   final DioClient dioClient;
 
-  const SymbioApp({
+  const KizunaApp({
     super.key,
     required this.authBloc,
     required this.authRepository,
@@ -123,16 +123,16 @@ class SymbioApp extends StatelessWidget {
             }
           },
           child: MaterialApp(
-            title: 'Symbio',
+            title: 'Kizuna',
             debugShowCheckedModeBanner: false,
-            theme: SymbioTheme.darkTheme,
+            theme: KizunaTheme.darkTheme,
             home: BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
                 if (state is Authenticated) {
                   if (state.token.isNotEmpty) {
                     context.read<DashboardBloc>().add(StartRealTimeUpdates(state.token));
                   }
-                  return const SymbioHome();
+                  return const KizunaHome();
                 }
 
               if (state is AuthInitial) {
@@ -155,18 +155,18 @@ class SymbioApp extends StatelessWidget {
 }
 
 /// Root widget with bottom navigation
-class SymbioHome extends StatefulWidget {
-  const SymbioHome({super.key});
+class KizunaHome extends StatefulWidget {
+  const KizunaHome({super.key});
 
   @override
-  State<SymbioHome> createState() => _SymbioHomeState();
+  State<KizunaHome> createState() => _KizunaHomeState();
 }
 
-class _SymbioHomeState extends State<SymbioHome> {
+class _KizunaHomeState extends State<KizunaHome> {
   int _currentIndex = 0;
 
   final _screens = const [
-    SymbiosisDashboard(),
+    KizunaDashboard(),
     FriendsScreen(),
     ActivityTab(),
   ];
@@ -180,7 +180,7 @@ class _SymbioHomeState extends State<SymbioHome> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: SymbioTheme.surfaceGlass,
+          color: KizunaTheme.surfaceGlass,
           border: Border(top: BorderSide(color: Colors.white10, width: 0.5)),
         ),
         child: BottomNavigationBar(
@@ -188,7 +188,7 @@ class _SymbioHomeState extends State<SymbioHome> {
           onTap: (i) => setState(() => _currentIndex = i),
           backgroundColor: Colors.transparent,
           elevation: 0,
-          selectedItemColor: SymbioTheme.primaryBlue,
+          selectedItemColor: KizunaTheme.primaryBlue,
           unselectedItemColor: Colors.white24,
           selectedLabelStyle: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w900),
           unselectedLabelStyle: const TextStyle(fontSize: 10, letterSpacing: 1.5),

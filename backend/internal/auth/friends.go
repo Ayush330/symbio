@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,6 +39,16 @@ type FriendInfo struct {
 	Phone              string    `json:"phone,omitempty"`
 	RelationshipID     uuid.UUID `json:"relationship_id"`
 	RelationshipHealth float64   `json:"relationship_health"`
+	KarmaScore         float64   `json:"karma_score"`
+}
+
+func calculateKarmaScore(favours, points int) float64 {
+	// Formula: S(x, y) = 1 + 99 * (1 - e^-(0.05*x + 0.005*y))
+	k_x := 0.05
+	k_y := 0.005
+	val := k_x*float64(favours) + k_y*float64(points)
+	score := 1.0 + 99.0*(1.0-math.Exp(-val))
+	return score
 }
 
 // ListFriends returns all friends of the authenticated user with relationship health
@@ -56,14 +67,18 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT
 			u.id, u.name, u.email, COALESCE(u.phone, ''),
-			ur.id AS rel_id, ur.reciprocity_score, ur.user_a_id
+			ur.id AS rel_id, ur.reciprocity_score, ur.user_a_id,
+			COUNT(c.id) FILTER (WHERE c.status = 'ACKNOWLEDGED') as count_favours,
+			COALESCE(SUM(c.points) FILTER (WHERE c.status = 'ACKNOWLEDGED'), 0) as total_points
 		FROM user_relationships ur
 		JOIN users u ON (
 			(ur.user_a_id = $1 AND u.id = ur.user_b_id) OR
 			(ur.user_b_id = $1 AND u.id = ur.user_a_id)
 		)
+		LEFT JOIN commitments c ON c.rel_id = ur.id
 		WHERE (ur.user_a_id = $1 OR ur.user_b_id = $1)
 		  AND ur.status = 'ACCEPTED'
+		GROUP BY u.id, ur.id
 	`
 
 	rows, err := h.db.QueryContext(r.Context(), query, userUUID)
@@ -79,7 +94,8 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		var f FriendInfo
 		var score float64
 		var userA uuid.UUID
-		if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Phone, &f.RelationshipID, &score, &userA); err != nil {
+		var countFavours, totalPoints int
+		if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Phone, &f.RelationshipID, &score, &userA, &countFavours, &totalPoints); err != nil {
 			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
@@ -89,6 +105,7 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 			score = -score
 		}
 		f.RelationshipHealth = score
+		f.KarmaScore = calculateKarmaScore(countFavours, totalPoints)
 		friends = append(friends, f)
 	}
 
@@ -209,7 +226,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 			target, _ := h.service.(*authService).repo.GetUserByID(context.Background(), targetUUID)
 			if target != nil && target.FCMToken != "" {
 				title := "New Friend Request"
-				body := fmt.Sprintf("%s wants to connect with you on Symbio!", initiator.Name)
+				body := fmt.Sprintf("%s wants to connect with you on Kizuna!", initiator.Name)
 				h.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type": "friend_request",
 					"id":   initiatorID.String(),
@@ -633,6 +650,7 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 
 	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"score":           score,
+		"karma_score":     calculateKarmaScore(totalGiven+totalReceived, pointsGiven+pointsReceived),
 		"color":           color,
 		"total_given":     totalGiven,
 		"total_received":  totalReceived,
@@ -674,6 +692,7 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 	}
 
 	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"karma_score":            calculateKarmaScore(totalGiven+totalReceived, pointsGiven+pointsReceived),
 		"total_favours_given":    totalGiven,
 		"total_favours_received": totalReceived,
 		"total_points_given":     pointsGiven,

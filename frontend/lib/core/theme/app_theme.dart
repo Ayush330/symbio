@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class SymbioTheme {
+class KizunaTheme {
   static const Color primaryBlue = Color(0xFF00D2FF);
   static const Color accentCyan = Color(0xFF3A7BD5);
   static const Color backgroundBlack = Color(0xFF050505);
@@ -11,6 +11,23 @@ class SymbioTheme {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
+
+  static Color getKarmaColor(double score) {
+    // Normalize score to 0.0 - 1.0 (clamped)
+    final double normalized = (score.clamp(1.0, 100.0) - 1.0) / 99.0;
+
+    const Color startColor = Color(0xFFFF5252); // Red (Low Karma)
+    const Color midColor = Color(0xFFFFD740);   // Yellow/Ambition (Mid Karma)
+    const Color endColor = Color(0xFF00E676);   // Green/Peace (High Karma)
+
+    if (normalized < 0.5) {
+      // Interpolate between Red and Yellow
+      return Color.lerp(startColor, midColor, normalized * 2)!;
+    } else {
+      // Interpolate between Yellow and Green/Cyan
+      return Color.lerp(midColor, endColor, (normalized - 0.5) * 2)!;
+    }
+  }
 
   static ThemeData get darkTheme {
     return ThemeData(

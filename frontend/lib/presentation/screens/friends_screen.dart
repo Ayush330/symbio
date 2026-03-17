@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../blocs/friends_bloc.dart';
 import '../widgets/glass_container.dart';
-import '../widgets/symbio_button.dart';
+import '../widgets/kizuna_button.dart';
 import 'friend_detail_screen.dart';
 import 'invite_screen.dart';
 
@@ -37,12 +37,6 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
     super.dispose();
   }
 
-  Color _healthColor(double score) {
-    if (score > 50) return const Color(0xFF00E676);
-    if (score > 0) return const Color(0xFFFFD740);
-    if (score > -30) return const Color(0xFFFF9100);
-    return const Color(0xFFFF5252);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,14 +50,14 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           context,
           MaterialPageRoute(builder: (_) => const InviteScreen()),
         ),
-        backgroundColor: SymbioTheme.accentCyan,
+        backgroundColor: KizunaTheme.accentCyan,
         child: const Icon(Icons.person_add_alt_1, color: Colors.black),
       ),
       body: Stack(
         children: [
           // Background
           Positioned.fill(
-            child: Container(color: SymbioTheme.backgroundBlack),
+            child: Container(color: KizunaTheme.backgroundBlack),
           ),
           Positioned(
             bottom: -80,
@@ -73,7 +67,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               height: 250,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.primaryBlue.withOpacity(0.04),
+                color: KizunaTheme.primaryBlue.withOpacity(0.04),
               ),
             ),
           ),
@@ -120,15 +114,15 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          SymbioTheme.primaryBlue.withOpacity(0.15),
-                          SymbioTheme.primaryBlue.withOpacity(0.02),
+                          KizunaTheme.primaryBlue.withOpacity(0.15),
+                          KizunaTheme.primaryBlue.withOpacity(0.02),
                         ],
                       ),
                     ),
                     child: Icon(
                       Icons.people_outline_rounded,
                       size: 56,
-                      color: SymbioTheme.primaryBlue.withOpacity(0.4),
+                      color: KizunaTheme.primaryBlue.withOpacity(0.4),
                     ),
                   ),
                 );
@@ -147,7 +141,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 12),
             Text(
-              'Invite someone to start your symbiosis journey together.',
+              'Invite someone to start your Kizuna journey together.',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.white.withOpacity(0.3),
@@ -158,7 +152,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             const SizedBox(height: 40),
             SizedBox(
               width: 220,
-              child: SymbioButton(
+              child: KizunaButton(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const InviteScreen()),
@@ -224,8 +218,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               height: 48,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: SymbioTheme.accentCyan.withValues(alpha: 0.1),
-                border: Border.all(color: SymbioTheme.accentCyan.withValues(alpha: 0.3)),
+                color: KizunaTheme.accentCyan.withValues(alpha: 0.1),
+                border: Border.all(color: KizunaTheme.accentCyan.withValues(alpha: 0.3)),
               ),
               child: Center(
                 child: Text(
@@ -233,7 +227,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    color: SymbioTheme.accentCyan,
+                    color: KizunaTheme.accentCyan,
                   ),
                 ),
               ),
@@ -287,8 +281,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   Widget _buildFriendItem(dynamic friend) {
-    final health = (friend['relationship_health'] as num?)?.toDouble() ?? 0.0;
-    final healthColor = _healthColor(health);
+    final karma = (friend['karma_score'] as num?)?.toDouble() ?? 1.0;
+    final healthColor = KizunaTheme.getKarmaColor(karma);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -299,7 +293,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             builder: (_) => FriendDetailScreen(
               friendId: friend['id'],
               friendName: friend['name'] ?? 'Unknown',
-              health: health,
+              health: karma,
             ),
           ),
         ),
@@ -345,7 +339,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                   border: Border.all(color: healthColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  health.toStringAsFixed(1),
+                  karma.toStringAsFixed(0),
                   style: TextStyle(
                     color: healthColor,
                     fontWeight: FontWeight.w900,

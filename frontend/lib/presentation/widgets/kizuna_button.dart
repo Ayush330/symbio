@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
-class SymbioButton extends StatefulWidget {
+class KizunaButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
@@ -11,7 +11,7 @@ class SymbioButton extends StatefulWidget {
   final EdgeInsets? padding;
   final double fontSize;
 
-  const SymbioButton({
+  const KizunaButton({
     super.key,
     required this.label,
     this.onPressed,
@@ -24,10 +24,10 @@ class SymbioButton extends StatefulWidget {
   });
 
   @override
-  State<SymbioButton> createState() => _SymbioButtonState();
+  State<KizunaButton> createState() => _KizunaButtonState();
 }
 
-class _SymbioButtonState extends State<SymbioButton> with SingleTickerProviderStateMixin {
+class _KizunaButtonState extends State<KizunaButton> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
@@ -54,8 +54,8 @@ class _SymbioButtonState extends State<SymbioButton> with SingleTickerProviderSt
     final bool isEnabled = widget.onPressed != null && !widget.isLoading;
     final List<Color> effectiveGradient = widget.gradient ??
         [
-          SymbioTheme.accentCyan,
-          SymbioTheme.primaryBlue,
+          KizunaTheme.accentCyan,
+          KizunaTheme.primaryBlue,
         ];
 
     return GestureDetector(

@@ -65,7 +65,7 @@ func main() {
 	fmt.Printf("Sending notification to %s (%s)...\n", targetName, targetUserID)
 	err = fcmService.SendPushNotification(context.Background(), targetToken, 
 		"New Friend Request!", 
-		"Phantom Boy wants to connect with you on Symbio!", 
+		"Phantom Boy wants to connect with you on Kizuna!", 
 		map[string]string{
 			"type": "friend_request",
 			"id": phantomID.String(),
