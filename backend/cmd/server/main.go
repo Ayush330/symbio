@@ -61,19 +61,30 @@ func main() {
 	go wsManager.Run()
 	broadcaster := &wsBroadcaster{m: wsManager}
 
-	// 5. Initialize Commitments setup
-	commRepo := commitments.NewRepository(postgresDB)
-	commService := commitments.NewService(commRepo, redisClient, authRepo, fcmService, broadcaster)
-	commitmentsHandler := commitments.NewHandler(commService)
-
-	wsHandler := ws.NewHandler(wsManager, commService)
-
 	// 6. Initialize Notifications / Twilio setup
 	twilioService, twilioErr := notifications.NewTwilioService()
 	if twilioErr != nil {
 		log.Printf("Warning: Twilio service not initialized: %v", twilioErr)
 	}
 	notificationsHandler := notifications.NewHandler(twilioService, authRepo)
+
+	// 6.5 Setup Classifier
+	keywordClassifier := &commitments.KeywordClassifier{}
+	geminiApiKey := os.Getenv("GEMINI_API_KEY")
+	classifier := commitments.Classifier(keywordClassifier)
+	if geminiApiKey != "" {
+		classifier = &commitments.GeminiClassifier{
+			ApiKey:   geminiApiKey,
+			Fallback: keywordClassifier,
+		}
+	}
+
+	// 5. Initialize Commitments setup
+	commRepo := commitments.NewRepository(postgresDB)
+	commService := commitments.NewService(commRepo, redisClient, authRepo, fcmService, broadcaster, classifier)
+	commitmentsHandler := commitments.NewHandler(commService)
+
+	wsHandler := ws.NewHandler(wsManager, commService)
 
 	// 7. Initialize Outbox Relay & Kafka
 	kafkaProducer := kafka.NewProducer()

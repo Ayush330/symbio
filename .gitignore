@@ -1,0 +1,8 @@
+.env
+*.log
+/backend/bin
+/frontend/build
+/frontend/.dart_tool
+/frontend/.packages
+/frontend/pubspec.lock
+.DS_Store

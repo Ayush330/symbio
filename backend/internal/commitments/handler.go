@@ -145,11 +145,12 @@ func (h *Handler) ClassifyFavour(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	category, points := ClassifyFavour(req.Text)
-	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"category": category,
-		"points":   points,
-	})
+	metrics, err := h.Service.(*commitmentsService).classifier.Analyze(r.Context(), req.Text)
+	if err != nil {
+		transport.SendError(w, http.StatusInternalServerError, "Analysis failed")
+		return
+	}
+	transport.WriteJSON(w, http.StatusOK, metrics)
 }
 
 func (h *Handler) GetFavourConfig(w http.ResponseWriter, r *http.Request) {

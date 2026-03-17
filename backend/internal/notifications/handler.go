@@ -64,6 +64,11 @@ func (h *Handler) SendInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.Twilio == nil {
+		transport.SendError(w, http.StatusServiceUnavailable, "SMS service unavailable")
+		return
+	}
+
 	err = h.Twilio.SendInvite(req.PhoneNumber, inviterName, false)
 	if err != nil {
 		// Log it, but return generic error to client

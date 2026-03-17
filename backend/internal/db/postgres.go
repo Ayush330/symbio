@@ -29,7 +29,7 @@ func NewPostgresDB() (*sql.DB, error) {
 	}
 	dbname := os.Getenv("DB_NAME")
 	if dbname == "" {
-		dbname = "kizuna_db"
+		dbname = "symbio_db"
 	}
 
 	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",

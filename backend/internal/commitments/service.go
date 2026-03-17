@@ -36,15 +36,17 @@ type commitmentsService struct {
 	authRepo    auth.Repository
 	pushSender  PushSender
 	broadcaster Broadcaster
+	classifier  Classifier
 }
 
-func NewService(repo Repository, redisClient *redis.Client, authRepo auth.Repository, pushSender PushSender, broadcaster Broadcaster) Service {
+func NewService(repo Repository, redisClient *redis.Client, authRepo auth.Repository, pushSender PushSender, broadcaster Broadcaster, classifier Classifier) Service {
 	return &commitmentsService{
 		repo:        repo,
 		redis:       redisClient,
 		authRepo:    authRepo,
 		pushSender:  pushSender,
 		broadcaster: broadcaster,
+		classifier:  classifier,
 	}
 }
 
@@ -70,7 +72,8 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		return nil, fmt.Errorf("cannot create commitment: %v", err)
 	}
 
-	cat, pts := ClassifyFavour(req.Text)
+	catVal, pts, _ := s.classifier.Classify(ctx, req.Text)
+	cat := string(catVal)
 	if req.Category != "" {
 		cat = req.Category
 	}
@@ -116,25 +119,25 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		return nil, err
 	}
 
-		// Real-time broadcast
-		if s.broadcaster != nil {
-			log.Printf("SYNC: Broadcasting commitment_requested to target %s", targetUID)
-			commBytes, _ := json.Marshal(commitment)
-			wsMsg, _ := json.Marshal(map[string]interface{}{
-				"type": "commitment_requested",
-				"data": json.RawMessage(commBytes),
-			})
-			s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
-			
-			// Signal a refresh for both users
-			log.Printf("SYNC: Sending data_refresh to %s and %s", targetUID, initiatorID)
-			refreshMsg, _ := json.Marshal(map[string]interface{}{
-				"type": "data_refresh",
-				"data": map[string]string{"reason": "commitment_requested"},
-			})
-			s.broadcaster.BroadcastToUser(targetUID.String(), refreshMsg)
-			s.broadcaster.BroadcastToUser(initiatorID.String(), refreshMsg)
-		}
+	// Real-time broadcast
+	if s.broadcaster != nil {
+		log.Printf("SYNC: Broadcasting commitment_requested to target %s", targetUID)
+		commBytes, _ := json.Marshal(commitment)
+		wsMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "commitment_requested",
+			"data": json.RawMessage(commBytes),
+		})
+		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
+
+		// Signal a refresh for both users
+		log.Printf("SYNC: Sending data_refresh to %s and %s", targetUID, initiatorID)
+		refreshMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "commitment_requested"},
+		})
+		s.broadcaster.BroadcastToUser(targetUID.String(), refreshMsg)
+		s.broadcaster.BroadcastToUser(initiatorID.String(), refreshMsg)
+	}
 
 	// Async push notification
 	if s.pushSender != nil {
@@ -153,7 +156,7 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 			if target != nil && target.FCMToken != "" {
 				title := "New Commitment Request"
 				body := fmt.Sprintf("%s has proposed a new commitment: %s", initiator.Name, req.Text)
-				
+
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type":  "commitment_request",
 					"id":    commitment.ID.String(),
@@ -389,7 +392,8 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		return nil, fmt.Errorf("cannot create favour: %v", err)
 	}
 
-	cat, pts := ClassifyFavour(req.Text)
+	catVal, pts, _ := s.classifier.Classify(ctx, req.Text)
+	cat := string(catVal)
 	if req.Category != "" {
 		cat = req.Category
 	}
