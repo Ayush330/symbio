@@ -98,6 +98,7 @@ func main() {
 	mux.HandleFunc("/friends/request", friendsHandler.SendFriendRequest)
 	mux.HandleFunc("/friends/accept", friendsHandler.AcceptFriendRequest)
 	mux.HandleFunc("/friends/reject", friendsHandler.RejectFriendRequest)
+	mux.HandleFunc("/friends/invite", friendsHandler.SendInvite)
 	mux.HandleFunc("/friends/", friendsHandler.GetFriendActivity) // /friends/{id}/activity
 	mux.HandleFunc("/activity", friendsHandler.GetGlobalActivity) // Global activity tab
 	mux.HandleFunc("/user/lookup", friendsHandler.LookupUser)

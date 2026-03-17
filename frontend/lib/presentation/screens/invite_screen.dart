@@ -14,12 +14,13 @@ class InviteScreen extends StatefulWidget {
 }
 
 class _InviteScreenState extends State<InviteScreen> {
-  final _emailController = TextEditingController();
+  final _inputController = TextEditingController();
   bool _isLoading = false;
   Map<String, dynamic>? _lookupResult;
 
   void _handleLookup() async {
-    if (_emailController.text.trim().isEmpty) return;
+    final query = _inputController.text.trim();
+    if (query.isEmpty) return;
 
     setState(() {
       _isLoading = true;
@@ -28,7 +29,15 @@ class _InviteScreenState extends State<InviteScreen> {
 
     try {
       final repo = context.read<FriendsRepository>();
-      final result = await repo.lookupUser(_emailController.text.trim());
+      
+      // Basic detection for phone vs email
+      final isPhone = RegExp(r'^[\d\+\-\(\)\s]{7,}$').hasMatch(query);
+      
+      final result = await repo.lookupUser(
+        !isPhone ? query : null,
+        phone: isPhone ? query : null,
+      );
+      
       if (mounted) {
         setState(() {
           _lookupResult = result;
@@ -40,6 +49,36 @@ class _InviteScreenState extends State<InviteScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  void _handleInvite() async {
+    final query = _inputController.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final repo = context.read<FriendsRepository>();
+      final isPhone = RegExp(r'^[\d\+\-\(\)\s]{7,}$').hasMatch(query);
+      
+      await repo.sendInvite(
+        email: !isPhone ? query : null,
+        phone: isPhone ? query : null,
+      );
+      
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invitation sent!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invite Error: $e'), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -120,20 +159,36 @@ class _InviteScreenState extends State<InviteScreen> {
                     child: Column(
                       children: [
                         TextField(
-                          controller: _emailController,
+                          controller: _inputController,
                           decoration: const InputDecoration(
-                            hintText: 'Enter their email address',
+                            hintText: 'Enter email or phone number',
                             prefixIcon: Icon(Icons.search_rounded, size: 20),
                           ),
-                          keyboardType: TextInputType.emailAddress,
+                          keyboardType: TextInputType.text,
                           onSubmitted: (_) => _handleLookup(),
                         ),
                         const SizedBox(height: 20),
-                        SymbioButton(
-                          onPressed: _handleLookup,
-                          isLoading: _isLoading,
-                          label: 'SEARCH',
-                          icon: Icons.search_rounded,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SymbioButton(
+                                onPressed: _handleLookup,
+                                isLoading: _isLoading,
+                                label: 'SEARCH',
+                                icon: Icons.search_rounded,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SymbioButton(
+                                onPressed: _handleInvite,
+                                isLoading: _isLoading,
+                                label: 'INVITE',
+                                icon: Icons.send_rounded,
+                                outline: true,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -222,9 +277,15 @@ class _InviteScreenState extends State<InviteScreen> {
           ),
           const SizedBox(height: 20),
           SymbioButton(
+            onPressed: _handleInvite,
+            icon: Icons.mark_email_read_rounded,
+            label: 'SEND FORMAL INVITE',
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
             onPressed: _shareInvite,
-            icon: Icons.share_rounded,
-            label: 'SHARE INVITE',
+            icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white38),
+            label: const Text('SHARE LINK INSTEAD', style: TextStyle(color: Colors.white38, fontSize: 11)),
           ),
         ],
       ),

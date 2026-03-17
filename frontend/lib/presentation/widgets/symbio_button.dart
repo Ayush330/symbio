@@ -7,6 +7,7 @@ class SymbioButton extends StatefulWidget {
   final IconData? icon;
   final List<Color>? gradient;
   final bool isLoading;
+  final bool outline;
 
   const SymbioButton({
     super.key,
@@ -15,6 +16,7 @@ class SymbioButton extends StatefulWidget {
     this.icon,
     this.gradient,
     this.isLoading = false,
+    this.outline = false,
   });
 
   @override
@@ -68,12 +70,13 @@ class _SymbioButtonState extends State<SymbioButton> with SingleTickerProviderSt
                 padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
+                  gradient: widget.outline ? null : LinearGradient(
                     colors: effectiveGradient,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  boxShadow: [
+                  border: widget.outline ? Border.all(color: effectiveGradient.first.withValues(alpha: 0.5), width: 1.5) : null,
+                  boxShadow: widget.outline ? null : [
                     BoxShadow(
                       color: effectiveGradient.last.withValues(alpha: 0.3),
                       blurRadius: 20,
@@ -95,13 +98,14 @@ class _SymbioButtonState extends State<SymbioButton> with SingleTickerProviderSt
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (widget.icon != null) ...[
-                              Icon(widget.icon, size: 20, color: Colors.black),
+                              Icon(widget.icon,
+                                  size: 20, color: widget.outline ? effectiveGradient.first : Colors.black),
                               const SizedBox(width: 10),
                             ],
                             Text(
                               widget.label.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.black,
+                              style: TextStyle(
+                                color: widget.outline ? effectiveGradient.first : Colors.black,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.5,

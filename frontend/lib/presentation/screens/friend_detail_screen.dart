@@ -147,62 +147,106 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     );
   }
 
-  void _showCreateFavourDialog() {
-    final TextEditingController controller = TextEditingController();
-    bool isSending = false;
+  void _handleClassification(String text) async {
+    if (text.isEmpty) return;
 
+    setState(() => _isLoading = true);
+    try {
+      final repo = context.read<FriendsRepository>();
+      final classification = await repo.classifyFavour(text);
+      
+      if (mounted) {
+        _showConfirmationDialog(text, classification['category'], classification['points']);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Classification Error: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showConfirmationDialog(String text, String category, int points) {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: SymbioTheme.surfaceGlass,
-          title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
-          content: TextField(
-            controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              hintText: 'e.g., Helped with interview prep',
-              hintStyle: TextStyle(color: Colors.white24),
-            ),
-            maxLines: 3,
-            enabled: !isSending,
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSending ? null : () => Navigator.pop(context),
-              child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
-            ),
-            TextButton(
-              onPressed: isSending
-                  ? null
-                  : () async {
-                      if (controller.text.isEmpty) return;
-
-                      setDialogState(() => isSending = true);
-                      try {
-                        await context.read<FriendsRepository>().createFavour(widget.friendId, controller.text);
-                        if (mounted) {
-                          Navigator.pop(context);
-                          _loadActivity(); // Refresh list
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Favour added to the ledger.')),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          setDialogState(() => isSending = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
-                          );
-                        }
-                      }
-                    },
-              child: isSending
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('SEND', style: TextStyle(color: SymbioTheme.primaryBlue)),
-            ),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SymbioTheme.surfaceGlass,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: SymbioTheme.primaryBlue.withOpacity(0.2)),
+        ),
+        title: const Text('CLASSIFICATION', style: TextStyle(color: Colors.white, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(category.toUpperCase(), style: const TextStyle(color: SymbioTheme.primaryBlue, fontSize: 24, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text('+$points POINTS', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+            const SizedBox(height: 16),
+            Text('“$text”', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 12, fontStyle: FontStyle.italic)),
           ],
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('EDIT', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _submitFavour(text, category, points);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: SymbioTheme.primaryBlue, foregroundColor: Colors.black),
+            child: const Text('CONFIRM'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submitFavour(String text, String category, int points) async {
+    setState(() => _isLoading = true);
+    try {
+      final repo = context.read<FriendsRepository>();
+      await repo.createFavour(widget.friendId, text, category: category, points: points);
+      if (mounted) {
+        _loadActivity();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Favour recorded.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showCreateFavourDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: SymbioTheme.surfaceGlass,
+        title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: 'What did you do?', hintStyle: TextStyle(color: Colors.white24)),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL', style: TextStyle(color: Colors.white38))),
+          TextButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
+              Navigator.pop(context);
+              _handleClassification(text);
+            },
+            child: const Text('NEXT', style: TextStyle(color: SymbioTheme.primaryBlue)),
+          ),
+        ],
       ),
     );
   }

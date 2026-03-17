@@ -46,6 +46,8 @@ type RequestCommitmentReq struct {
 	TargetUserID string `json:"target_user_id"`
 	Rating       int    `json:"rating,omitempty"` // 1-100
 	Text         string `json:"text,omitempty"`
+	Category     string `json:"category,omitempty"`
+	Points       int    `json:"points,omitempty"`
 }
 
 type AcceptCommitmentReq struct {

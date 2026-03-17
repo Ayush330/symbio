@@ -334,7 +334,7 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
-// LookupUser checks if a user exists by email
+// LookupUser checks if a user exists by email or phone
 func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -342,16 +342,26 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := r.URL.Query().Get("email")
-	if email == "" {
-		transport.SendError(w, http.StatusBadRequest, "email parameter required")
+	phone := r.URL.Query().Get("phone")
+
+	if email == "" && phone == "" {
+		transport.SendError(w, http.StatusBadRequest, "email or phone parameter required")
 		return
 	}
 
 	var userID uuid.UUID
 	var name string
-	err := h.db.QueryRowContext(r.Context(), 
-		`SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)`, email,
-	).Scan(&userID, &name)
+	var err error
+
+	if email != "" {
+		err = h.db.QueryRowContext(r.Context(), 
+			`SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)`, email,
+		).Scan(&userID, &name)
+	} else {
+		err = h.db.QueryRowContext(r.Context(), 
+			`SELECT id, name FROM users WHERE phone = $1`, phone,
+		).Scan(&userID, &name)
+	}
 
 	if err == sql.ErrNoRows {
 		transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
@@ -360,6 +370,7 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		log.Printf("DB Query Error (LookupUser): %v", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -369,6 +380,41 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 		"user_id": userID.String(),
 		"name":    name,
 	})
+}
+
+// SendInvite sends an invitation to a new user (via SMS or Email)
+func (h *FriendsHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	userUUID, err := ExtractUserID(r)
+	if err != nil {
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req struct {
+		Phone string `json:"phone,omitempty"`
+		Email string `json:"email,omitempty"`
+		Name  string `json:"name,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Phone == "" && req.Email == "" {
+		transport.SendError(w, http.StatusBadRequest, "phone or email is required")
+		return
+	}
+
+	// For now, we just log the invite and notify the user
+	// In a real app, this would trigger SMS via Twilio or Email via SendGrid
+	log.Printf("INVITE: User %s invited %s (Email: %s, Phone: %s)", userUUID, req.Name, req.Email, req.Phone)
+
+	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 type ActivityItem struct {

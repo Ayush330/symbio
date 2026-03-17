@@ -70,6 +70,14 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		return nil, fmt.Errorf("cannot create commitment: %v", err)
 	}
 
+	cat, pts := ClassifyFavour(req.Text)
+	if req.Category != "" {
+		cat = req.Category
+	}
+	if req.Points != 0 {
+		pts = req.Points
+	}
+
 	commitment := &Commitment{
 		RelID:       relID,
 		InitiatorID: initiatorID,
@@ -77,12 +85,8 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		Rating:      req.Rating,
 		Status:      StatusPending,
 		Text:        req.Text,
-	}
-
-	if req.Text != "" {
-		cat, pts := ClassifyFavour(req.Text)
-		commitment.Category = cat
-		commitment.Points = pts
+		Category:    cat,
+		Points:      pts,
 	}
 
 	if err := s.repo.CreateCommitment(ctx, tx, commitment); err != nil {
@@ -112,23 +116,25 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		return nil, err
 	}
 
-	// Real-time broadcast
-	if s.broadcaster != nil {
-		commBytes, _ := json.Marshal(commitment)
-		wsMsg, _ := json.Marshal(map[string]interface{}{
-			"type": "commitment_requested",
-			"data": json.RawMessage(commBytes),
-		})
-		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
-		
-		// Signal a refresh for both users
-		refreshMsg, _ := json.Marshal(map[string]interface{}{
-			"type": "data_refresh",
-			"data": map[string]string{"reason": "commitment_requested"},
-		})
-		s.broadcaster.BroadcastToUser(targetUID.String(), refreshMsg)
-		s.broadcaster.BroadcastToUser(initiatorID.String(), refreshMsg)
-	}
+		// Real-time broadcast
+		if s.broadcaster != nil {
+			log.Printf("SYNC: Broadcasting commitment_requested to target %s", targetUID)
+			commBytes, _ := json.Marshal(commitment)
+			wsMsg, _ := json.Marshal(map[string]interface{}{
+				"type": "commitment_requested",
+				"data": json.RawMessage(commBytes),
+			})
+			s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
+			
+			// Signal a refresh for both users
+			log.Printf("SYNC: Sending data_refresh to %s and %s", targetUID, initiatorID)
+			refreshMsg, _ := json.Marshal(map[string]interface{}{
+				"type": "data_refresh",
+				"data": map[string]string{"reason": "commitment_requested"},
+			})
+			s.broadcaster.BroadcastToUser(targetUID.String(), refreshMsg)
+			s.broadcaster.BroadcastToUser(initiatorID.String(), refreshMsg)
+		}
 
 	// Async push notification
 	if s.pushSender != nil {
@@ -224,6 +230,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 
 	// Real-time broadcast
 	if s.broadcaster != nil {
+		log.Printf("SYNC: Broadcasting commitment_accepted to %s and %s", commitment.InitiatorID, commitment.TargetID)
 		commBytes, _ := json.Marshal(commitment)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "commitment_accepted",
@@ -233,6 +240,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		s.broadcaster.BroadcastToUser(commitment.TargetID.String(), wsMsg)
 
 		// Signal refresh
+		log.Printf("SYNC: Sending data_refresh to %s and %s", commitment.InitiatorID, commitment.TargetID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
 			"data": map[string]string{"reason": "commitment_accepted"},
@@ -313,6 +321,7 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 
 	// Real-time broadcast
 	if s.broadcaster != nil && comm != nil {
+		log.Printf("SYNC: Broadcasting commitment_denied to %s", comm.InitiatorID)
 		commBytes, _ := json.Marshal(comm)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "commitment_denied",
@@ -321,6 +330,7 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 		s.broadcaster.BroadcastToUser(comm.InitiatorID.String(), wsMsg)
 
 		// Signal refresh
+		log.Printf("SYNC: Sending data_refresh to %s and %s", comm.InitiatorID, comm.TargetID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
 			"data": map[string]string{"reason": "commitment_denied"},
@@ -380,6 +390,12 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 	}
 
 	cat, pts := ClassifyFavour(req.Text)
+	if req.Category != "" {
+		cat = req.Category
+	}
+	if req.Points != 0 {
+		pts = req.Points
+	}
 
 	commitment := &Commitment{
 		RelID:       relID,
@@ -427,6 +443,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 
 	// Real-time broadcast
 	if s.broadcaster != nil {
+		log.Printf("SYNC: Broadcasting favour_created to %s and %s", targetUID, initiatorID)
 		commBytes, _ := json.Marshal(commitment)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "favour_created",
@@ -436,6 +453,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		s.broadcaster.BroadcastToUser(initiatorID.String(), wsMsg)
 
 		// Signal refresh for both users
+		log.Printf("SYNC: Sending data_refresh (favour) to %s and %s", targetUID, initiatorID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
 			"data": map[string]string{"reason": "favour_created"},

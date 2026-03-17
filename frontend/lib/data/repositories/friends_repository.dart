@@ -16,9 +16,21 @@ class FriendsRepository {
     return response.data as List<dynamic>;
   }
 
-  Future<Map<String, dynamic>> lookupUser(String email) async {
-    final response = await dioClient.get('/user/lookup', queryParameters: {'email': email});
+  Future<Map<String, dynamic>> lookupUser(String? email, {String? phone}) async {
+    final queryParams = <String, String>{};
+    if (email != null && email.isNotEmpty) queryParams['email'] = email;
+    if (phone != null && phone.isNotEmpty) queryParams['phone'] = phone;
+    
+    final response = await dioClient.get('/user/lookup', queryParameters: queryParams);
     return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> sendInvite({String? email, String? phone, String? name}) async {
+    await dioClient.post('/friends/invite', data: {
+      if (email != null) 'email': email,
+      if (phone != null) 'phone': phone,
+      if (name != null) 'name': name,
+    });
   }
 
   Future<List<dynamic>> getEntities(String type) async {
@@ -63,10 +75,12 @@ class FriendsRepository {
     await dioClient.post('/friends/reject', data: {'rel_id': relId});
   }
 
-  Future<Map<String, dynamic>> createFavour(String toUserId, String text) async {
+  Future<Map<String, dynamic>> createFavour(String toUserId, String text, {String? category, int? points}) async {
     final response = await dioClient.post('/favour/create', data: {
       'target_user_id': toUserId,
       'text': text,
+      if (category != null) 'category': category,
+      if (points != null) 'points': points,
     });
     return response.data as Map<String, dynamic>;
   }
