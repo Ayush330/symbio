@@ -69,13 +69,8 @@ func (c *Client) handleMessage(raw []byte) {
 			log.Printf("Failed to request commitment: %v", err)
 		} else {
 			// Notify the target user
-			payload, _ := json.Marshal(WSMessage{
-				Type: "commitment_requested",
-				Data: msg.Data, // Original request data or marshaled comm
-			})
-			// Overwrite Data with the actual Commitment object for better client-side info
 			commBytes, _ := json.Marshal(comm)
-			payload, _ = json.Marshal(WSMessage{
+			payload, _ := json.Marshal(WSMessage{
 				Type: "commitment_requested",
 				Data: commBytes,
 			})
@@ -112,13 +107,6 @@ func (c *Client) handleMessage(raw []byte) {
 				TargetID: c.UserID,
 				Payload:  payload,
 			}
-
-			// GLOBAL BROADCAST: Notify all users about the new entity rating
-			broadcastPayload, _ := json.Marshal(WSMessage{
-				Type: "entity_rating_updated",
-				Data: commBytes,
-			})
-			c.Manager.Broadcast <- broadcastPayload
 		}
 
 	case "deny_commitment":
@@ -142,53 +130,6 @@ func (c *Client) handleMessage(raw []byte) {
 				Payload:  payload,
 			}
 		}
-
-	case "rate_entity":
-		// Standalone rating change for an existing entity
-		type RateEntityReq struct {
-			EntityID   string `json:"entity_id"`
-			EntityType string `json:"entity_type"`
-			Rating     int    `json:"rating"`
-		}
-		var req RateEntityReq
-		if err := json.Unmarshal(msg.Data, &req); err != nil {
-			log.Printf("Invalid rate_entity data: %v", err)
-			return
-		}
-
-		entityID, err := uuid.Parse(req.EntityID)
-		if err != nil {
-			log.Printf("Invalid entity ID: %v", err)
-			return
-		}
-
-		entityType := commitments.EntityType(req.EntityType)
-		tx, err := c.CommitmentsService.BeginTx(ctx)
-		if err != nil {
-			log.Printf("Failed to begin tx for rating: %v", err)
-			return
-		}
-		defer tx.Rollback()
-
-		avgScore, err := c.CommitmentsService.UpdateEntityRating(ctx, tx, entityType, entityID, req.Rating)
-		if err != nil {
-			log.Printf("Failed to update entity rating: %v", err)
-			return
-		}
-		tx.Commit()
-
-		// Broadcast the updated rating to all connected users
-		ratingUpdate := map[string]interface{}{
-			"entity_id":        req.EntityID,
-			"entity_type":      req.EntityType,
-			"reliability_score": avgScore,
-		}
-		ratingBytes, _ := json.Marshal(ratingUpdate)
-		broadcastPayload, _ := json.Marshal(WSMessage{
-			Type: "entity_rating_updated",
-			Data: ratingBytes,
-		})
-		c.Manager.Broadcast <- broadcastPayload
 
 	case "ping":
 		// Silent acknowledgment to keep connection alive and clean up logs

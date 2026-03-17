@@ -9,13 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type EntityType string
 type CommitmentStatus string
 
 const (
-	TypeMaterialistic EntityType = "MATERIAL"
-	TypeEmotional     EntityType = "EMOTIONAL"
-
 	StatusPending      CommitmentStatus = "PENDING"
 	StatusAcknowledged CommitmentStatus = "ACKNOWLEDGED"
 	StatusFlaked       CommitmentStatus = "FLAKED"
@@ -27,28 +23,12 @@ type Commitment struct {
 	RelID       uuid.UUID        `json:"rel_id"`
 	InitiatorID uuid.UUID        `json:"initiator_id"`
 	TargetID    uuid.UUID        `json:"target_id"`
-	EntityID    *uuid.UUID       `json:"entity_id,omitempty"`
-	EntityType  EntityType       `json:"entity_type,omitempty"`
 	Text        string           `json:"text,omitempty"`
 	Category    string           `json:"category,omitempty"`
 	Points      int              `json:"points"`
 	Rating      int              `json:"rating"`
 	Status      CommitmentStatus `json:"status"`
 	CreatedAt   time.Time        `json:"created_at"`
-}
-
-type MaterialisticEntity struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	TotalScore int64     `json:"total_score"`
-	UsersVotes int       `json:"users_votes"`
-}
-
-type EmotionalEntity struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	TotalScore int64     `json:"total_score"`
-	UsersVotes int       `json:"users_votes"`
 }
 
 type OutboxEvent struct {
@@ -62,12 +42,9 @@ type OutboxEvent struct {
 
 // Request payloads
 type RequestCommitmentReq struct {
-	TargetUserID string     `json:"target_user_id"`
-	EntityID     string     `json:"entity_id,omitempty"`
-	EntityName   string     `json:"entity_name,omitempty"` // Used if EntityID is empty
-	EntityType   EntityType `json:"entity_type,omitempty"`
-	Rating       int        `json:"rating,omitempty"` // 1-100
-	Text         string     `json:"text,omitempty"`
+	TargetUserID string `json:"target_user_id"`
+	Rating       int    `json:"rating,omitempty"` // 1-100
+	Text         string `json:"text,omitempty"`
 }
 
 type AcceptCommitmentReq struct {
@@ -85,9 +62,7 @@ type Repository interface {
 	CreateCommitment(ctx context.Context, tx *sql.Tx, c *Commitment) error
 	GetCommitment(ctx context.Context, id uuid.UUID) (*Commitment, error)
 	UpdateCommitmentStatus(ctx context.Context, tx *sql.Tx, id uuid.UUID, status CommitmentStatus) error
-	UpdateEntityScoreAndGetAverage(ctx context.Context, tx *sql.Tx, entityType EntityType, entityID uuid.UUID, rating int) (float64, error)
 	InsertOutboxEvent(ctx context.Context, tx *sql.Tx, event *OutboxEvent) error
-	GetOrCreateEntity(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (uuid.UUID, error)
 	GetRelationship(ctx context.Context, tx *sql.Tx, relID uuid.UUID) (uuid.UUID, uuid.UUID, error)
 	UpdateReciprocityScore(ctx context.Context, tx *sql.Tx, relID uuid.UUID, initiatorID uuid.UUID, scoreDelta float64) error
 }
@@ -124,23 +99,23 @@ func (r *postgresRepository) GetActiveRelationship(ctx context.Context, tx *sql.
 
 func (r *postgresRepository) CreateCommitment(ctx context.Context, tx *sql.Tx, c *Commitment) error {
 	query := `
-		INSERT INTO commitments (rel_id, initiator_id, target_id, entity_id, entity_type, text, category, points, rating, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO commitments (rel_id, initiator_id, target_id, text, category, points, rating, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at
 	`
 	return tx.QueryRowContext(ctx, query,
-		c.RelID, c.InitiatorID, c.TargetID, c.EntityID, c.EntityType, c.Text, c.Category, c.Points, c.Rating, c.Status,
+		c.RelID, c.InitiatorID, c.TargetID, c.Text, c.Category, c.Points, c.Rating, c.Status,
 	).Scan(&c.ID, &c.CreatedAt)
 }
 
 func (r *postgresRepository) GetCommitment(ctx context.Context, id uuid.UUID) (*Commitment, error) {
 	query := `
-		SELECT id, rel_id, initiator_id, target_id, entity_id, entity_type, text, category, points, rating, status, created_at
+		SELECT id, rel_id, initiator_id, target_id, text, category, points, rating, status, created_at
 		FROM commitments WHERE id = $1
 	`
 	c := &Commitment{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&c.ID, &c.RelID, &c.InitiatorID, &c.TargetID, &c.EntityID, &c.EntityType, &c.Text, &c.Category, &c.Points, &c.Rating, &c.Status, &c.CreatedAt,
+		&c.ID, &c.RelID, &c.InitiatorID, &c.TargetID, &c.Text, &c.Category, &c.Points, &c.Rating, &c.Status, &c.CreatedAt,
 	)
 	return c, err
 }
@@ -148,32 +123,6 @@ func (r *postgresRepository) GetCommitment(ctx context.Context, id uuid.UUID) (*
 func (r *postgresRepository) UpdateCommitmentStatus(ctx context.Context, tx *sql.Tx, id uuid.UUID, status CommitmentStatus) error {
 	_, err := tx.ExecContext(ctx, `UPDATE commitments SET status = $1 WHERE id = $2`, status, id)
 	return err
-}
-
-func (r *postgresRepository) UpdateEntityScoreAndGetAverage(ctx context.Context, tx *sql.Tx, entityType EntityType, entityID uuid.UUID, rating int) (float64, error) {
-	table := "materialistic_entities"
-	if entityType == TypeEmotional {
-		table = "emotional_entities"
-	}
-
-	query := fmt.Sprintf(`
-		UPDATE %s
-		SET total_score = total_score + $1, users_votes = users_votes + 1
-		WHERE id = $2
-		RETURNING total_score, users_votes
-	`, table)
-
-	var totalScore int64
-	var usersVotes int
-	err := tx.QueryRowContext(ctx, query, rating, entityID).Scan(&totalScore, &usersVotes)
-	if err != nil {
-		return 0, err
-	}
-
-	if usersVotes == 0 {
-		return 0, nil
-	}
-	return float64(totalScore) / float64(usersVotes), nil
 }
 
 func (r *postgresRepository) InsertOutboxEvent(ctx context.Context, tx *sql.Tx, event *OutboxEvent) error {
@@ -184,24 +133,6 @@ func (r *postgresRepository) InsertOutboxEvent(ctx context.Context, tx *sql.Tx, 
 	// Payload is text (JSON), postgres will cast to JSONB
 	_, err := tx.ExecContext(ctx, query, event.AggregateType, event.AggregateID, event.EventType, event.Payload)
 	return err
-}
-
-func (r *postgresRepository) GetOrCreateEntity(ctx context.Context, tx *sql.Tx, entityType EntityType, name string) (uuid.UUID, error) {
-	table := "materialistic_entities"
-	if entityType == TypeEmotional {
-		table = "emotional_entities"
-	}
-
-	var entityID uuid.UUID
-	query := fmt.Sprintf(`SELECT id FROM %s WHERE name = $1`, table)
-	err := tx.QueryRowContext(ctx, query, name).Scan(&entityID)
-	
-	if err == sql.ErrNoRows {
-		insertQuery := fmt.Sprintf(`INSERT INTO %s (name) VALUES ($1) RETURNING id`, table)
-		err = tx.QueryRowContext(ctx, insertQuery, name).Scan(&entityID)
-	}
-	
-	return entityID, err
 }
 
 func (r *postgresRepository) GetRelationship(ctx context.Context, tx *sql.Tx, relID uuid.UUID) (uuid.UUID, uuid.UUID, error) {

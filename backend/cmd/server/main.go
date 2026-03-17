@@ -16,15 +16,6 @@ import (
 	"github.com/Ayush330/symbio/backend/internal/ws"
 )
 
-// wsBroadcaster implements the commitments.Broadcaster interface
-type wsBroadcaster struct {
-	m *ws.Manager
-}
-
-func (w *wsBroadcaster) Broadcast(message []byte) {
-	w.m.Broadcast <- message
-}
-
 func main() {
 	// 1. Initialize DBs
 	postgresDB, err := db.NewPostgresDB()
@@ -96,19 +87,6 @@ func main() {
 	mux.HandleFunc("/friends/", friendsHandler.GetFriendActivity) // /friends/{id}/activity
 	mux.HandleFunc("/user/lookup", friendsHandler.LookupUser)
 
-	// Entities autocomplete & creation
-	// Wrapper to pass the websocket manager to the entity handler
-	wsWrapper := &wsBroadcaster{m: wsManager}
-
-	entitiesHandler := commitments.NewEntitiesHandler(postgresDB, wsWrapper)
-	mux.HandleFunc("/entities", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			entitiesHandler.CreateEntity(w, r)
-		} else {
-			entitiesHandler.ListEntities(w, r)
-		}
-	})
-
 	mux.HandleFunc("/favour/create", commitmentsHandler.CreateFavour)
 	mux.HandleFunc("/favour/config", commitmentsHandler.GetFavourConfig)
 	mux.HandleFunc("/favour/classify", commitmentsHandler.ClassifyFavour)
@@ -131,7 +109,6 @@ func main() {
 	port := ":8080"
 	log.Printf("Starting server on port %s", port)
 
-	// Wrap mux with Recovery and CORS
 	handler := recoveryMiddleware(corsMiddleware(mux))
 
 	if err := http.ListenAndServe(port, handler); err != nil {
@@ -142,41 +119,16 @@ func main() {
 func ensureSchema(db *sql.DB) {
 	log.Println("Checking database schema...")
 	
-	// Add category column if missing
-	_, err := db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS category VARCHAR(20)`)
-	if err != nil {
-		log.Printf("Warning: failed to add category column: %v", err)
-	}
+	// Ensure essential columns exist
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS category VARCHAR(20)`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS points INT DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS text TEXT`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS rating INT DEFAULT 0`)
 
-	// Add points column if missing
-	_, err = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS points INT DEFAULT 0`)
-	if err != nil {
-		log.Printf("Warning: failed to add points column: %v", err)
-	}
-
-	// Add text column if missing
-	log.Println("Ensuring 'text' column exists in commitments...")
-	_, err = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS text TEXT`)
-	if err != nil {
-		log.Fatalf("CRITICAL: failed to add text column: %v", err)
-	}
-
-	// Drop NOT NULL constraints on entity_id and entity_type since flavours make them optional
-	log.Println("Relaxing NOT NULL constraints for flavours...")
-	_, err = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_id DROP NOT NULL`)
-	if err != nil {
-		log.Printf("Warning: failed to drop not-null on entity_id: %v", err)
-	}
-	_, err = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_type DROP NOT NULL`)
-	if err != nil {
-		log.Printf("Warning: failed to drop not-null on entity_type: %v", err)
-	}
-
-	// Drop rating check constraint since flavours have 0 rating (violates 1-100 check)
-	_, err = db.Exec(`ALTER TABLE commitments DROP CONSTRAINT IF EXISTS commitments_rating_check`)
-	if err != nil {
-		log.Printf("Warning: failed to drop rating check constraint: %v", err)
-	}
+	// Relax constraints to support pure text/points flow
+	_, _ = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_id DROP NOT NULL`)
+	_, _ = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_type DROP NOT NULL`)
+	_, _ = db.Exec(`ALTER TABLE commitments DROP CONSTRAINT IF EXISTS commitments_rating_check`)
 
 	log.Println("Schema check complete.")
 }
@@ -197,7 +149,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)

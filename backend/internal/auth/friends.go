@@ -414,12 +414,9 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 
 	// Fetch recent commitments for this relationship
 	activityQuery := `
-		SELECT c.id, c.initiator_id, c.target_id, c.entity_type, c.text, c.category, c.points, c.rating, c.status, c.created_at,
-			COALESCE(me.name, ee.name, 'Unknown') AS entity_name,
+		SELECT c.id, c.initiator_id, c.target_id, COALESCE(c.text, ''), COALESCE(c.category, ''), c.points, c.rating, c.status, c.created_at,
 			u.name AS initiator_name
 		FROM commitments c
-		LEFT JOIN materialistic_entities me ON c.entity_type = 'MATERIAL' AND c.entity_id = me.id
-		LEFT JOIN emotional_entities ee ON c.entity_type = 'EMOTIONAL' AND c.entity_id = ee.id
 		LEFT JOIN users u ON c.initiator_id = u.id
 		WHERE c.rel_id = $1
 		ORDER BY c.created_at DESC
@@ -437,14 +434,12 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		ID            uuid.UUID `json:"id"`
 		InitiatorID   uuid.UUID `json:"initiator_id"`
 		TargetID      uuid.UUID `json:"target_id"`
-		EntityType    string    `json:"entity_type"`
 		Text          string    `json:"text"`
 		Category      string    `json:"category"`
 		Points        int       `json:"points"`
 		Rating        int       `json:"rating"`
 		Status        string    `json:"status"`
 		CreatedAt     string    `json:"created_at"`
-		EntityName    string    `json:"entity_name"`
 		InitiatorName string    `json:"initiator_name"`
 	}
 
@@ -452,7 +447,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 	for rows.Next() {
 		var a ActivityItem
 		var createdAt time.Time
-		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.EntityType, &a.Text, &a.Category, &a.Points, &a.Rating, &a.Status, &createdAt, &a.EntityName, &a.InitiatorName); err != nil {
+		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.Text, &a.Category, &a.Points, &a.Rating, &a.Status, &createdAt, &a.InitiatorName); err != nil {
 			log.Printf("DB Scan Error (GetFriendActivity): %v", err)
 			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return

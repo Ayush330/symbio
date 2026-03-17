@@ -22,7 +22,6 @@ type Service interface {
 	AcceptCommitment(ctx context.Context, userID uuid.UUID, req AcceptCommitmentReq) (*Commitment, error)
 	DenyCommitment(ctx context.Context, userID uuid.UUID, req DenyCommitmentReq) (*Commitment, error)
 	BeginTx(ctx context.Context) (*sql.Tx, error)
-	UpdateEntityRating(ctx context.Context, tx *sql.Tx, entityType EntityType, entityID uuid.UUID, rating int) (float64, error)
 	CreateFavour(ctx context.Context, initiatorID uuid.UUID, req RequestCommitmentReq) (*Commitment, error)
 	GetFavourConfig() map[string]int
 }
@@ -55,28 +54,6 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 	}
 	defer tx.Rollback()
 
-	// Dynamic Entity Creation
-	var entityID uuid.UUID
-	isNewEntity := false
-	if req.EntityID != "" {
-		entityID, err = uuid.Parse(req.EntityID)
-		if err != nil {
-			return nil, errors.New("invalid entity ID")
-		}
-	} else if req.EntityName != "" {
-		entityID, err = s.repo.GetOrCreateEntity(ctx, tx, req.EntityType, req.EntityName)
-		if err != nil {
-			return nil, err
-		}
-		isNewEntity = true
-	} else {
-		return nil, errors.New("either entity_id or entity_name must be provided")
-	}
-
-	// Validation: Must rate if it's a new entity
-	if isNewEntity && (req.Rating < 1 || req.Rating > 100) {
-		return nil, errors.New("rating is mandatory for new entities and must be between 1-100")
-	}
 	// Validation: Rating must be valid if provided
 	if req.Rating != 0 && (req.Rating < 1 || req.Rating > 100) {
 		return nil, errors.New("rating must be between 1 and 100")
@@ -91,14 +68,12 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		RelID:       relID,
 		InitiatorID: initiatorID,
 		TargetID:    targetUID,
-		EntityID:    &entityID,
-		EntityType:  req.EntityType,
 		Rating:      req.Rating,
 		Status:      StatusPending,
+		Text:        req.Text,
 	}
 
 	if req.Text != "" {
-		commitment.Text = req.Text
 		cat, pts := ClassifyFavour(req.Text)
 		commitment.Category = cat
 		commitment.Points = pts
@@ -113,7 +88,6 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		"commitment_id": commitment.ID,
 		"initiator_id":  initiatorID,
 		"target_user":   targetUID,
-		"entity_id":     entityID,
 		"status":        commitment.Status,
 	})
 
@@ -148,10 +122,7 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 
 			if target != nil && target.FCMToken != "" {
 				title := "New Commitment Request"
-				body := fmt.Sprintf("%s has proposed a new %s commitment", initiator.Name, req.EntityType)
-				if req.EntityName != "" {
-					body = fmt.Sprintf("%s has proposed a new %s: %s", initiator.Name, req.EntityType, req.EntityName)
-				}
+				body := fmt.Sprintf("%s has proposed a new commitment: %s", initiator.Name, req.Text)
 				
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type": "commitment_request",
@@ -175,7 +146,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		return nil, errors.New("invalid commitment ID")
 	}
 
-	// Get initial commitment (outside tx is fine for basic check)
+	// Get initial commitment
 	commitment, err := s.repo.GetCommitment(ctx, commID)
 	if err != nil {
 		return nil, err
@@ -184,8 +155,6 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 	if commitment.Status != StatusPending {
 		return nil, errors.New("commitment is not pending")
 	}
-	// Note: We should ideally verify `userID` belongs to the relationship and isn't the initiator
-	// This requires pulling the relationship, skipping for brevity but assuming valid user flow
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -197,17 +166,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		return nil, err
 	}
 
-	// Calculate and update the average score for the entity
-	newAverage := 0.0
-	if commitment.Rating > 0 && commitment.EntityID != nil {
-		newAverage, err = s.repo.UpdateEntityScoreAndGetAverage(ctx, tx, commitment.EntityType, *commitment.EntityID, commitment.Rating)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// Calculate +/- Ledger Update based on requested Ratings or Points
-	// Initiator (+), Accepter (-)
 	scoreDelta := float64(commitment.Rating)
 	if commitment.Points > 0 {
 		scoreDelta = float64(commitment.Points)
@@ -219,8 +178,6 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 	// Emitting the Outbox Event
 	payload, _ := json.Marshal(map[string]interface{}{
 		"commitment_id": commitment.ID,
-		"entity_id":     commitment.EntityID,
-		"new_average":   newAverage,
 		"status":        StatusAcknowledged,
 	})
 
@@ -239,21 +196,12 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		return nil, err
 	}
 
-	// ✅ Update the Redis "other user in red" outside the transaction for speed
-	// Since Redis isn't part of the Postgres TX, we do it post-commit
-	cacheKey := fmt.Sprintf("user_avg_score:%s:%s", userID.String(), commitment.EntityID.String())
-	err = s.redis.Set(ctx, cacheKey, newAverage, 0).Err()
-	if err != nil {
-		// Log error, but don't fail the request since DB/Kafka pipeline succeeded
-		fmt.Printf("Warning: failed to update redis cache: %v\n", err)
-	}
-
 	commitment.Status = StatusAcknowledged
-	// Note: We should ideally have the TargetID already from GetCommitment
+
 	// Async push notification
 	if s.pushSender != nil {
 		go func() {
-			target, err := s.authRepo.GetUserByID(context.Background(), commitment.TargetID) // Person who accepted
+			target, err := s.authRepo.GetUserByID(context.Background(), commitment.TargetID)
 			if err != nil {
 				log.Printf("Warning: failed to fetch target for accept notification: %v", err)
 				return
@@ -316,12 +264,10 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 		return nil, err
 	}
 
-	// Fetch or update local object to return
 	comm, err := s.repo.GetCommitment(ctx, commID)
-	// Async push notification
 	if s.pushSender != nil {
 		go func() {
-			target, err := s.authRepo.GetUserByID(context.Background(), userID) // Person who denied
+			target, err := s.authRepo.GetUserByID(context.Background(), userID)
 			if err != nil {
 				log.Printf("Warning: failed to fetch target for deny notification: %v", err)
 				return
@@ -376,14 +322,18 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		Text:        req.Text,
 		Category:    cat,
 		Points:      pts,
-		Status:      StatusPending,
+		Status:      StatusAcknowledged, // Favours are instant
 	}
 
 	if err := s.repo.CreateCommitment(ctx, tx, commitment); err != nil {
 		return nil, err
 	}
 
-	// Outbox event
+	if err := s.repo.UpdateReciprocityScore(ctx, tx, relID, initiatorID, float64(pts)); err != nil {
+		log.Printf("Error updating reciprocity score for favour: %v", err)
+		return nil, err
+	}
+
 	payload, _ := json.Marshal(map[string]interface{}{
 		"favour_id":     commitment.ID,
 		"from_user_id":  initiatorID,
@@ -391,6 +341,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		"category":      cat,
 		"points":        pts,
 		"text":          req.Text,
+		"status":        StatusAcknowledged,
 	})
 
 	outboxEvent := &OutboxEvent{
@@ -408,9 +359,9 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		return nil, err
 	}
 
-	// Async push notification
 	if s.pushSender != nil {
 		go func() {
+			log.Printf("DEBUG: Starting push notification flow for favour %s", commitment.ID)
 			initiator, err := s.authRepo.GetUserByID(context.Background(), initiatorID)
 			if err != nil {
 				log.Printf("Warning: failed to fetch initiator (%s) for favour notification: %v", initiatorID, err)
@@ -423,6 +374,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 			}
 
 			if target != nil && target.FCMToken != "" {
+				log.Printf("DEBUG: Found FCM token for target %s: %s", target.Email, target.FCMToken)
 				title := "New Favour Received!"
 				body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
@@ -435,7 +387,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 					log.Printf("Successfully sent favour notification to %s", target.Email)
 				}
 			} else {
-				log.Printf("Target user %s has no FCM token, skipping notification", targetUID)
+				log.Printf("Warning: Target user %s has no FCM token or target is nil.", targetUID)
 			}
 		}()
 	}
@@ -447,16 +399,12 @@ func (s *commitmentsService) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return s.repo.BeginTx(ctx)
 }
 
-func (s *commitmentsService) UpdateEntityRating(ctx context.Context, tx *sql.Tx, entityType EntityType, entityID uuid.UUID, rating int) (float64, error) {
-	return s.repo.UpdateEntityScoreAndGetAverage(ctx, tx, entityType, entityID, rating)
-}
-
 func (s *commitmentsService) GetFavourConfig() map[string]int {
 	return map[string]int{
-		string(CategoryHealth):    50,
-		string(CategoryMoney):     40,
-		string(CategoryHelp):      30,
-		string(CategoryEmotional): 20,
-		string(CategoryOther):     10,
+		"HEALTH":    50,
+		"MONEY":     40,
+		"HELP":      30,
+		"EMOTIONAL": 20,
+		"OTHER":     10,
 	}
 }
