@@ -55,10 +55,11 @@ func (s *FCMService) SendPushNotification(ctx context.Context, token, title, bod
 		Android: &messaging.AndroidConfig{
 			Priority: "high", // Critical for real-time visibility
 			Notification: &messaging.AndroidNotification{
-				Color:    color,
-				Icon:     icon,
-				Sound:    "default",
-				Priority: messaging.PriorityHigh,
+				Color:      "#90EE90",
+				Icon:       icon,
+				Sound:      "default",
+				Priority:   messaging.PriorityHigh,
+				Visibility: messaging.VisibilityPrivate,
 			},
 		},
 		APNS: &messaging.APNSConfig{

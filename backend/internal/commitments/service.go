@@ -120,6 +120,14 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 			"data": json.RawMessage(commBytes),
 		})
 		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
+		
+		// Signal a refresh for both users
+		refreshMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "commitment_requested"},
+		})
+		s.broadcaster.BroadcastToUser(targetUID.String(), refreshMsg)
+		s.broadcaster.BroadcastToUser(initiatorID.String(), refreshMsg)
 	}
 
 	// Async push notification
@@ -143,7 +151,7 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type":  "commitment_request",
 					"id":    commitment.ID.String(),
-					"color": "#800080",
+					"color": "#90EE90",
 					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
@@ -223,6 +231,14 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		})
 		s.broadcaster.BroadcastToUser(commitment.InitiatorID.String(), wsMsg)
 		s.broadcaster.BroadcastToUser(commitment.TargetID.String(), wsMsg)
+
+		// Signal refresh
+		refreshMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "commitment_accepted"},
+		})
+		s.broadcaster.BroadcastToUser(commitment.InitiatorID.String(), refreshMsg)
+		s.broadcaster.BroadcastToUser(commitment.TargetID.String(), refreshMsg)
 	}
 
 	// Async push notification
@@ -244,7 +260,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 				err := s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
 					"type":  "commitment_accepted",
 					"id":    commitment.ID.String(),
-					"color": "#800080",
+					"color": "#90EE90",
 					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
@@ -303,6 +319,14 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 			"data": json.RawMessage(commBytes),
 		})
 		s.broadcaster.BroadcastToUser(comm.InitiatorID.String(), wsMsg)
+
+		// Signal refresh
+		refreshMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "commitment_denied"},
+		})
+		s.broadcaster.BroadcastToUser(comm.InitiatorID.String(), refreshMsg)
+		s.broadcaster.BroadcastToUser(comm.TargetID.String(), refreshMsg)
 	}
 
 	if s.pushSender != nil {
@@ -324,7 +348,7 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 					err := s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
 						"type":  "commitment_denied",
 						"id":    commID.String(),
-						"color": "#800080",
+						"color": "#90EE90",
 						"icon":  "notification_icon_heart",
 					})
 					if err != nil {
@@ -410,6 +434,14 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		})
 		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
 		s.broadcaster.BroadcastToUser(initiatorID.String(), wsMsg)
+
+		// Signal refresh for both users
+		refreshMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "favour_created"},
+		})
+		s.broadcaster.BroadcastToUser(targetUID.String(), refreshMsg)
+		s.broadcaster.BroadcastToUser(initiatorID.String(), refreshMsg)
 	}
 
 	if s.pushSender != nil {
@@ -431,7 +463,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
 					"type":  "favour_created",
 					"id":    commitment.ID.String(),
-					"color": "#800080",
+					"color": "#90EE90",
 					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
