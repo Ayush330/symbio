@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -145,16 +146,26 @@ func (r *postgresRepository) UpdateReciprocityScore(ctx context.Context, tx *sql
 	// We define reciprocity_score as UserA - UserB.
 	// So if UserA is the initiator: score += delta
 	// If UserB is the initiator: score -= delta
-	userA, _, err := r.GetRelationship(ctx, tx, relID)
+	userA, userB, err := r.GetRelationship(ctx, tx, relID)
 	if err != nil {
 		return err
 	}
 
+	log.Printf("DEBUG: Updating reciprocity for rel %s, initiator %s, delta %f. UserA %s, UserB %s", relID, initiatorID, scoreDelta, userA, userB)
+
 	query := `UPDATE user_relationships SET reciprocity_score = reciprocity_score + $1 WHERE id = $2`
 	if initiatorID != userA {
+		log.Printf("DEBUG: Initiator is UserB, inverting delta")
 		scoreDelta = -scoreDelta
+	} else {
+		log.Printf("DEBUG: Initiator is UserA, applying delta as is")
 	}
 
-	_, err = tx.ExecContext(ctx, query, scoreDelta, relID)
-	return err
+	res, err := tx.ExecContext(ctx, query, scoreDelta, relID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	log.Printf("DEBUG: Updated %d row(s) with new delta %f", rows, scoreDelta)
+	return nil
 }

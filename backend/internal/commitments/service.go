@@ -125,8 +125,10 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 				body := fmt.Sprintf("%s has proposed a new commitment: %s", initiator.Name, req.Text)
 				
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
-					"type": "commitment_request",
-					"id":   commitment.ID.String(),
+					"type":  "commitment_request",
+					"id":    commitment.ID.String(),
+					"color": "#800080",
+					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
 					log.Printf("Error sending request notification to %s: %v", target.Email, err)
@@ -215,8 +217,10 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 				title := "Commitment Accepted!"
 				body := fmt.Sprintf("%s has accepted your commitment.", target.Name)
 				err := s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
-					"type": "commitment_accepted",
-					"id":   commitment.ID.String(),
+					"type":  "commitment_accepted",
+					"id":    commitment.ID.String(),
+					"color": "#800080",
+					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
 					log.Printf("Error sending accept notification to %s: %v", initiator.Email, err)
@@ -282,8 +286,10 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 					title := "Commitment Denied"
 					body := fmt.Sprintf("%s has denied your commitment request.", target.Name)
 					err := s.pushSender.SendPushNotification(context.Background(), initiator.FCMToken, title, body, map[string]string{
-						"type": "commitment_denied",
-						"id":   commID.String(),
+						"type":  "commitment_denied",
+						"id":    commID.String(),
+						"color": "#800080",
+						"icon":  "notification_icon_heart",
 					})
 					if err != nil {
 						log.Printf("Error sending deny notification to %s: %v", initiator.Email, err)
@@ -378,8 +384,10 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 				title := "New Favour Received!"
 				body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
-					"type": "favour_created",
-					"id":   commitment.ID.String(),
+					"type":  "favour_created",
+					"id":    commitment.ID.String(),
+					"color": "#800080",
+					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
 					log.Printf("Error sending favour notification to %s: %v", target.Email, err)

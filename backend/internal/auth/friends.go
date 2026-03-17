@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -412,6 +413,19 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Pagination
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+	limit := 20
+	offset := 0
+
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+		offset = o
+	}
+
 	// Fetch recent commitments for this relationship
 	activityQuery := `
 		SELECT c.id, c.initiator_id, c.target_id, COALESCE(c.text, ''), COALESCE(c.category, ''), c.points, c.rating, c.status, c.created_at,
@@ -420,10 +434,10 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		LEFT JOIN users u ON c.initiator_id = u.id
 		WHERE c.rel_id = $1
 		ORDER BY c.created_at DESC
-		LIMIT 20
+		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := h.db.QueryContext(r.Context(), activityQuery, relID)
+	rows, err := h.db.QueryContext(r.Context(), activityQuery, relID, limit, offset)
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
@@ -443,7 +457,14 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		InitiatorName string    `json:"initiator_name"`
 	}
 
-	activities := []ActivityItem{}
+	type ActivityGroup struct {
+		Month string         `json:"month"`
+		Items []ActivityItem `json:"items"`
+	}
+
+	var activities []ActivityGroup
+	var currentGroup *ActivityGroup
+
 	for rows.Next() {
 		var a ActivityItem
 		var createdAt time.Time
@@ -453,7 +474,17 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		a.CreatedAt = createdAt.Format(time.RFC3339)
-		activities = append(activities, a)
+		
+		month := createdAt.Format("January 2006")
+		if currentGroup == nil || currentGroup.Month != month {
+			activities = append(activities, ActivityGroup{
+				Month: month,
+				Items: []ActivityItem{a},
+			})
+			currentGroup = &activities[len(activities)-1]
+		} else {
+			currentGroup.Items = append(currentGroup.Items, a)
+		}
 	}
 
 	transport.WriteJSON(w, http.StatusOK, activities)

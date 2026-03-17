@@ -37,12 +37,24 @@ func (s *FCMService) SendPushNotification(ctx context.Context, token, title, bod
 		return nil // No token, skip
 	}
 
+	// Extract color and icon from data if provided
+	color := data["color"]
+	icon := data["icon"]
+	delete(data, "color")
+	delete(data, "icon")
+
 	message := &messaging.Message{
 		Notification: &messaging.Notification{
 			Title: title,
 			Body:  body,
 		},
-		Data:  data,
+		Data: data,
+		Android: &messaging.AndroidConfig{
+			Notification: &messaging.AndroidNotification{
+				Color: color,
+				Icon:  icon,
+			},
+		},
 		Token: token,
 	}
 
