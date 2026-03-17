@@ -17,6 +17,10 @@ type PushSender interface {
 	SendPushNotification(ctx context.Context, token, title, body string, data map[string]string) error
 }
 
+type Broadcaster interface {
+	BroadcastToUser(userID string, payload []byte)
+}
+
 type Service interface {
 	RequestCommitment(ctx context.Context, initiatorID uuid.UUID, req RequestCommitmentReq) (*Commitment, error)
 	AcceptCommitment(ctx context.Context, userID uuid.UUID, req AcceptCommitmentReq) (*Commitment, error)
@@ -27,18 +31,20 @@ type Service interface {
 }
 
 type commitmentsService struct {
-	repo       Repository
-	redis      *redis.Client
-	authRepo   auth.Repository
-	pushSender PushSender
+	repo        Repository
+	redis       *redis.Client
+	authRepo    auth.Repository
+	pushSender  PushSender
+	broadcaster Broadcaster
 }
 
-func NewService(repo Repository, redisClient *redis.Client, authRepo auth.Repository, pushSender PushSender) Service {
+func NewService(repo Repository, redisClient *redis.Client, authRepo auth.Repository, pushSender PushSender, broadcaster Broadcaster) Service {
 	return &commitmentsService{
-		repo:       repo,
-		redis:      redisClient,
-		authRepo:   authRepo,
-		pushSender: pushSender,
+		repo:        repo,
+		redis:       redisClient,
+		authRepo:    authRepo,
+		pushSender:  pushSender,
+		broadcaster: broadcaster,
 	}
 }
 
@@ -106,6 +112,16 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		return nil, err
 	}
 
+	// Real-time broadcast
+	if s.broadcaster != nil {
+		commBytes, _ := json.Marshal(commitment)
+		wsMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "commitment_requested",
+			"data": json.RawMessage(commBytes),
+		})
+		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
+	}
+
 	// Async push notification
 	if s.pushSender != nil {
 		go func() {
@@ -132,8 +148,6 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 				})
 				if err != nil {
 					log.Printf("Error sending request notification to %s: %v", target.Email, err)
-				} else {
-					log.Printf("Successfully sent request notification to %s", target.Email)
 				}
 			}
 		}()
@@ -199,6 +213,17 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 	}
 
 	commitment.Status = StatusAcknowledged
+
+	// Real-time broadcast
+	if s.broadcaster != nil {
+		commBytes, _ := json.Marshal(commitment)
+		wsMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "commitment_accepted",
+			"data": json.RawMessage(commBytes),
+		})
+		s.broadcaster.BroadcastToUser(commitment.InitiatorID.String(), wsMsg)
+		s.broadcaster.BroadcastToUser(commitment.TargetID.String(), wsMsg)
+	}
 
 	// Async push notification
 	if s.pushSender != nil {
@@ -269,6 +294,17 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 	}
 
 	comm, err := s.repo.GetCommitment(ctx, commID)
+
+	// Real-time broadcast
+	if s.broadcaster != nil && comm != nil {
+		commBytes, _ := json.Marshal(comm)
+		wsMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "commitment_denied",
+			"data": json.RawMessage(commBytes),
+		})
+		s.broadcaster.BroadcastToUser(comm.InitiatorID.String(), wsMsg)
+	}
+
 	if s.pushSender != nil {
 		go func() {
 			target, err := s.authRepo.GetUserByID(context.Background(), userID)
@@ -341,13 +377,13 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 	}
 
 	payload, _ := json.Marshal(map[string]interface{}{
-		"favour_id":     commitment.ID,
-		"from_user_id":  initiatorID,
-		"to_user_id":    targetUID,
-		"category":      cat,
-		"points":        pts,
-		"text":          req.Text,
-		"status":        StatusAcknowledged,
+		"favour_id":    commitment.ID,
+		"from_user_id": initiatorID,
+		"to_user_id":   targetUID,
+		"category":     cat,
+		"points":       pts,
+		"text":         req.Text,
+		"status":       StatusAcknowledged,
 	})
 
 	outboxEvent := &OutboxEvent{
@@ -365,9 +401,19 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		return nil, err
 	}
 
+	// Real-time broadcast
+	if s.broadcaster != nil {
+		commBytes, _ := json.Marshal(commitment)
+		wsMsg, _ := json.Marshal(map[string]interface{}{
+			"type": "favour_created",
+			"data": json.RawMessage(commBytes),
+		})
+		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
+		s.broadcaster.BroadcastToUser(initiatorID.String(), wsMsg)
+	}
+
 	if s.pushSender != nil {
 		go func() {
-			log.Printf("DEBUG: Starting push notification flow for favour %s", commitment.ID)
 			initiator, err := s.authRepo.GetUserByID(context.Background(), initiatorID)
 			if err != nil {
 				log.Printf("Warning: failed to fetch initiator (%s) for favour notification: %v", initiatorID, err)
@@ -380,7 +426,6 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 			}
 
 			if target != nil && target.FCMToken != "" {
-				log.Printf("DEBUG: Found FCM token for target %s: %s", target.Email, target.FCMToken)
 				title := "New Favour Received!"
 				body := fmt.Sprintf("%s said: %s", initiator.Name, req.Text)
 				err := s.pushSender.SendPushNotification(context.Background(), target.FCMToken, title, body, map[string]string{
@@ -391,11 +436,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 				})
 				if err != nil {
 					log.Printf("Error sending favour notification to %s: %v", target.Email, err)
-				} else {
-					log.Printf("Successfully sent favour notification to %s", target.Email)
 				}
-			} else {
-				log.Printf("Warning: Target user %s has no FCM token or target is nil.", targetUID)
 			}
 		}()
 	}

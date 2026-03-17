@@ -53,14 +53,10 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err != nil {
-		return
-	}
-
 	query := `
 		SELECT
 			u.id, u.name, u.email, COALESCE(u.phone, ''),
-			ur.id AS rel_id, ur.reciprocity_score
+			ur.id AS rel_id, ur.reciprocity_score, ur.user_a_id
 		FROM user_relationships ur
 		JOIN users u ON (
 			(ur.user_a_id = $1 AND u.id = ur.user_b_id) OR
@@ -81,10 +77,18 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 	friends := []FriendInfo{}
 	for rows.Next() {
 		var f FriendInfo
-		if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Phone, &f.RelationshipID, &f.RelationshipHealth); err != nil {
+		var score float64
+		var userA uuid.UUID
+		if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Phone, &f.RelationshipID, &score, &userA); err != nil {
 			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 			return
 		}
+		// Reciprocity score is UserA - UserB. 
+		// If requesting user is UserB, invert it so it's relative to them.
+		if userUUID != userA {
+			score = -score
+		}
+		f.RelationshipHealth = score
 		friends = append(friends, f)
 	}
 
@@ -101,10 +105,6 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 	userUUID, err := ExtractUserID(r)
 	if err != nil {
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
-		return
-	}
-
-	if err != nil {
 		return
 	}
 
@@ -161,15 +161,13 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Standardize UUID ordering to prevent duplicates
-	initiatorUUID := initiatorID
 	targetUUID, err := uuid.Parse(req.TargetID)
 	if err != nil {
 		transport.SendError(w, http.StatusBadRequest, "Invalid target ID")
 		return
 	}
 
-	uid1, uid2 := initiatorUUID, targetUUID
+	uid1, uid2 := initiatorID, targetUUID
 	if strings.Compare(uid1.String(), uid2.String()) > 0 {
 		uid1, uid2 = uid2, uid1
 	}
@@ -190,7 +188,6 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 			transport.SendError(w, http.StatusConflict, "A friend request is already pending")
 			return
 		}
-		// If status is REJECTED, we allow it to be updated back to PENDING below
 	}
 
 	_, err = h.db.ExecContext(r.Context(), `
@@ -198,7 +195,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 		VALUES ($1, $2, $3, 'PENDING')
 		ON CONFLICT (user_a_id, user_b_id) DO UPDATE 
 		SET status = 'PENDING', initiator_id = EXCLUDED.initiator_id
-	`, uid1, uid2, initiatorUUID)
+	`, uid1, uid2, initiatorID)
 
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Failed to send request")
@@ -209,7 +206,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	if h.pushSender != nil {
 		go func() {
 			initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), initiatorID)
-			target, _ := h.service.(*authService).repo.GetUserByID(context.Background(), uuid.MustParse(req.TargetID))
+			target, _ := h.service.(*authService).repo.GetUserByID(context.Background(), targetUUID)
 			if target != nil && target.FCMToken != "" {
 				title := "New Friend Request"
 				body := fmt.Sprintf("%s wants to connect with you on Symbio!", initiator.Name)
@@ -271,10 +268,9 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 	// Async push notification
 	if h.pushSender != nil {
 		go func() {
-			var initiatorIDStr string
-			err := h.db.QueryRowContext(context.Background(), "SELECT initiator_id FROM user_relationships WHERE id = $1", relUUID).Scan(&initiatorIDStr)
+			var initiatorID uuid.UUID
+			err := h.db.QueryRowContext(context.Background(), "SELECT initiator_id FROM user_relationships WHERE id = $1", relUUID).Scan(&initiatorID)
 			if err == nil {
-				initiatorID, _ := uuid.Parse(initiatorIDStr)
 				accepter, _ := h.service.(*authService).repo.GetUserByID(context.Background(), userUUID)
 				initiator, _ := h.service.(*authService).repo.GetUserByID(context.Background(), initiatorID)
 				if initiator != nil && initiator.FCMToken != "" {
@@ -375,6 +371,24 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type ActivityItem struct {
+	ID            uuid.UUID `json:"id"`
+	InitiatorID   uuid.UUID `json:"initiator_id"`
+	TargetID      uuid.UUID `json:"target_id"`
+	Text          string    `json:"text"`
+	Category      string    `json:"category"`
+	Points        int       `json:"points"`
+	Rating        int       `json:"rating"`
+	Status        string    `json:"status"`
+	CreatedAt     string    `json:"created_at"`
+	InitiatorName string    `json:"initiator_name"`
+}
+
+type ActivityGroup struct {
+	Month string         `json:"month"`
+	Items []ActivityItem `json:"items"`
+}
+
 // GetFriendActivity returns recent commitments for a relationship
 func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -387,47 +401,33 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	// Extract friend ID from path: /friends/{id}/activity
+
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/friends/"), "/")
 	if len(parts) < 2 || parts[1] != "activity" {
 		transport.SendError(w, http.StatusBadRequest, "Invalid path")
 		return
 	}
-	friendID := parts[0]
-	friendUUID, err := uuid.Parse(friendID)
+	friendUUID, err := uuid.Parse(parts[0])
 	if err != nil {
 		transport.SendError(w, http.StatusBadRequest, "Invalid friend ID")
 		return
 	}
 
-	// Find relationship between the two users
-	query := `
-		SELECT ur.id FROM user_relationships ur
-		WHERE (ur.user_a_id = $1 AND ur.user_b_id = $2)
-		   OR (ur.user_a_id = $2 AND ur.user_b_id = $1)
-	`
+	// Find relationship
 	var relID uuid.UUID
-	err = h.db.QueryRowContext(r.Context(), query, userUUID, friendUUID).Scan(&relID)
+	err = h.db.QueryRowContext(r.Context(), `
+		SELECT id FROM user_relationships 
+		WHERE (user_a_id = $1 AND user_b_id = $2) OR (user_a_id = $2 AND user_b_id = $1)
+	`, userUUID, friendUUID).Scan(&relID)
+	
 	if err != nil {
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
 	}
 
-	// Pagination
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
-	limit := 20
-	offset := 0
+	limit, offset := parseLimitOffset(r)
 
-	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-		offset = o
-	}
-
-	// Fetch recent commitments for this relationship
-	activityQuery := `
+	query := `
 		SELECT c.id, c.initiator_id, c.target_id, COALESCE(c.text, ''), COALESCE(c.category, ''), c.points, c.rating, c.status, c.created_at,
 			u.name AS initiator_name
 		FROM commitments c
@@ -437,57 +437,95 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := h.db.QueryContext(r.Context(), activityQuery, relID, limit, offset)
+	rows, err := h.db.QueryContext(r.Context(), query, relID, limit, offset)
 	if err != nil {
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 	defer rows.Close()
 
-	type ActivityItem struct {
-		ID            uuid.UUID `json:"id"`
-		InitiatorID   uuid.UUID `json:"initiator_id"`
-		TargetID      uuid.UUID `json:"target_id"`
-		Text          string    `json:"text"`
-		Category      string    `json:"category"`
-		Points        int       `json:"points"`
-		Rating        int       `json:"rating"`
-		Status        string    `json:"status"`
-		CreatedAt     string    `json:"created_at"`
-		InitiatorName string    `json:"initiator_name"`
+	items := []ActivityItem{}
+	for rows.Next() {
+		var a ActivityItem
+		var createdAt time.Time
+		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.Text, &a.Category, &a.Points, &a.Rating, &a.Status, &createdAt, &a.InitiatorName); err != nil {
+			continue
+		}
+		a.CreatedAt = createdAt.Format(time.RFC3339)
+		items = append(items, a)
 	}
 
-	type ActivityGroup struct {
-		Month string         `json:"month"`
-		Items []ActivityItem `json:"items"`
+	transport.WriteJSON(w, http.StatusOK, items)
+}
+
+// GetGlobalActivity returns all user interactons grouped by month for the main activity tab
+func (h *FriendsHandler) GetGlobalActivity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		transport.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
 	}
 
-	var activities []ActivityGroup
+	userUUID, err := ExtractUserID(r)
+	if err != nil {
+		transport.SendError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	limit, offset := parseLimitOffset(r)
+
+	query := `
+		SELECT c.id, c.initiator_id, c.target_id, COALESCE(c.text, ''), COALESCE(c.category, ''), c.points, c.rating, c.status, c.created_at,
+			u.name AS initiator_name
+		FROM commitments c
+		LEFT JOIN users u ON c.initiator_id = u.id
+		WHERE c.initiator_id = $1 OR c.target_id = $1
+		ORDER BY c.created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := h.db.QueryContext(r.Context(), query, userUUID, limit, offset)
+	if err != nil {
+		log.Printf("DB Query Error (GetGlobalActivity): %v", err)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	defer rows.Close()
+
+	var groups []ActivityGroup
 	var currentGroup *ActivityGroup
 
 	for rows.Next() {
 		var a ActivityItem
 		var createdAt time.Time
 		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.Text, &a.Category, &a.Points, &a.Rating, &a.Status, &createdAt, &a.InitiatorName); err != nil {
-			log.Printf("DB Scan Error (GetFriendActivity): %v", err)
-			transport.SendError(w, http.StatusInternalServerError, "Internal server error")
-			return
+			log.Printf("Scan error: %v", err)
+			continue
 		}
 		a.CreatedAt = createdAt.Format(time.RFC3339)
 		
 		month := createdAt.Format("January 2006")
 		if currentGroup == nil || currentGroup.Month != month {
-			activities = append(activities, ActivityGroup{
+			groups = append(groups, ActivityGroup{
 				Month: month,
 				Items: []ActivityItem{a},
 			})
-			currentGroup = &activities[len(activities)-1]
+			currentGroup = &groups[len(groups)-1]
 		} else {
 			currentGroup.Items = append(currentGroup.Items, a)
 		}
 	}
 
-	transport.WriteJSON(w, http.StatusOK, activities)
+	transport.WriteJSON(w, http.StatusOK, groups)
+}
+
+func parseLimitOffset(r *http.Request) (int, int) {
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+	limit, _ := strconv.Atoi(limitStr)
+	offset, _ := strconv.Atoi(offsetStr)
+	if limit <= 0 { limit = 20 }
+	if offset < 0 { offset = 0 }
+	return limit, offset
 }
 
 // GetRelationshipStats returns detailed reciprocity stats and color for a friend
@@ -503,7 +541,6 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Extract friend ID from path: /relationship/{id}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/relationship/"), "/")
 	if len(parts) < 1 || parts[0] == "" {
 		transport.SendError(w, http.StatusBadRequest, "Friend ID is required")
@@ -516,11 +553,12 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 	}
 
 	var score float64
+	var userA uuid.UUID
 	var totalGiven, totalReceived int
 	var pointsGiven, pointsReceived int
 
 	query := `
-		SELECT ur.reciprocity_score,
+		SELECT ur.reciprocity_score, ur.user_a_id,
 			(SELECT COUNT(*) FROM commitments WHERE rel_id = ur.id AND initiator_id = $1 AND status = 'ACKNOWLEDGED') as given,
 			(SELECT COUNT(*) FROM commitments WHERE rel_id = ur.id AND target_id = $1 AND status = 'ACKNOWLEDGED') as received,
 			(SELECT COALESCE(SUM(points), 0) FROM commitments WHERE rel_id = ur.id AND initiator_id = $1 AND status = 'ACKNOWLEDGED') as pts_given,
@@ -528,11 +566,16 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 		FROM user_relationships ur
 		WHERE (ur.user_a_id = $1 AND ur.user_b_id = $2) OR (ur.user_a_id = $2 AND ur.user_b_id = $1)
 	`
-	err = h.db.QueryRowContext(r.Context(), query, userUUID, friendID).Scan(&score, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
+	err = h.db.QueryRowContext(r.Context(), query, userUUID, friendID).Scan(&score, &userA, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
 		log.Printf("DB Query Error (GetRelationshipStats): %v", err)
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
+	}
+
+	// Score is UserA - UserB relative. Adjust if requester is UserB.
+	if userUUID != userA {
+		score = -score
 	}
 
 	color := "yellow"
@@ -641,4 +684,3 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 
 	transport.WriteJSON(w, http.StatusOK, results)
 }
-

@@ -16,6 +16,18 @@ import (
 	"github.com/Ayush330/symbio/backend/internal/ws"
 )
 
+// wsBroadcaster implements the commitments.Broadcaster interface
+type wsBroadcaster struct {
+	m *ws.Manager
+}
+
+func (w *wsBroadcaster) BroadcastToUser(userID string, payload []byte) {
+	w.m.Message <- ws.Envelope{
+		TargetID: userID,
+		Payload:  payload,
+	}
+}
+
 func main() {
 	// 1. Initialize DBs
 	postgresDB, err := db.NewPostgresDB()
@@ -44,14 +56,16 @@ func main() {
 		log.Printf("Warning: FCM service not initialized: %v", fcmErr)
 	}
 
-	// 4. Initialize Commitments setup (needed by WS)
-	commRepo := commitments.NewRepository(postgresDB)
-	commService := commitments.NewService(commRepo, redisClient, authRepo, fcmService)
-	commitmentsHandler := commitments.NewHandler(commService)
-
-	// 4. Initialize WebSocket setup
+	// 4. Initialize WebSocket setup first for Broadcaster
 	wsManager := ws.NewManager()
 	go wsManager.Run()
+	broadcaster := &wsBroadcaster{m: wsManager}
+
+	// 5. Initialize Commitments setup
+	commRepo := commitments.NewRepository(postgresDB)
+	commService := commitments.NewService(commRepo, redisClient, authRepo, fcmService, broadcaster)
+	commitmentsHandler := commitments.NewHandler(commService)
+
 	wsHandler := ws.NewHandler(wsManager, commService)
 
 	// 6. Initialize Notifications / Twilio setup
@@ -61,13 +75,13 @@ func main() {
 	}
 	notificationsHandler := notifications.NewHandler(twilioService, authRepo)
 
-	// 6. Initialize Outbox Relay & Kafka
+	// 7. Initialize Outbox Relay & Kafka
 	kafkaProducer := kafka.NewProducer()
 	defer kafkaProducer.Close()
 	outboxRelay := outbox.NewRelay(postgresDB, kafkaProducer, 5*time.Second)
 	go outboxRelay.Start(context.Background())
 
-	// 6. Setup Routing
+	// 8. Setup Routing
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/signup", authHandler.Signup)
@@ -85,6 +99,7 @@ func main() {
 	mux.HandleFunc("/friends/accept", friendsHandler.AcceptFriendRequest)
 	mux.HandleFunc("/friends/reject", friendsHandler.RejectFriendRequest)
 	mux.HandleFunc("/friends/", friendsHandler.GetFriendActivity) // /friends/{id}/activity
+	mux.HandleFunc("/activity", friendsHandler.GetGlobalActivity) // Global activity tab
 	mux.HandleFunc("/user/lookup", friendsHandler.LookupUser)
 
 	mux.HandleFunc("/favour/create", commitmentsHandler.CreateFavour)
@@ -105,7 +120,7 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// 5. Start Server
+	// 9. Start Server
 	port := ":8080"
 	log.Printf("Starting server on port %s", port)
 
