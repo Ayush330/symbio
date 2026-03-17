@@ -154,22 +154,13 @@ func (c *Client) WritePump() {
 				return
 			}
 
-			w, err := c.Conn.NextWriter(websocket.TextMessage)
+			// Send each message in its own frame to avoid parsing issues on mobile
+			err := c.Conn.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
+				log.Printf("WS: Write error for user %s: %v", c.UserID, err)
 				return
 			}
-			w.Write(message)
-
-			// Add queued chat messages to the current websocket message.
-			n := len(c.Send)
-			for i := 0; i < n; i++ {
-				w.Write([]byte{'\n'})
-				w.Write(<-c.Send)
-			}
-
-			if err := w.Close(); err != nil {
-				return
-			}
+			log.Printf("WS: Frame delivered to user %s (Size: %d bytes)", c.UserID, len(message))
 		}
 	}
 }

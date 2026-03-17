@@ -39,15 +39,22 @@ func (m *Manager) Run() {
 			}
 		case message := <-m.Message:
 			// Send only to the required players
+			matchFound := false
 			for client := range m.Clients {
 				if client.UserID == message.TargetID {
 					select {
 					case client.Send <- message.Payload:
+						matchFound = true
 					default:
 						close(client.Send)
 						delete(m.Clients, client)
 					}
 				}
+			}
+			if !matchFound {
+				log.Printf("WS: No active clients found for UserID %s (Total clients: %d)", message.TargetID, len(m.Clients))
+			} else {
+				log.Printf("WS: Message delivered to UserID %s", message.TargetID)
 			}
 		case message := <-m.Broadcast:
 			for client := range m.Clients {
