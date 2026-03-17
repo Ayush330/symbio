@@ -13,20 +13,33 @@ class KizunaTheme {
       );
 
   static Color getKarmaColor(double score) {
-    // Normalize score to 0.0 - 1.0 (clamped)
-    final double normalized = (score.clamp(1.0, 100.0) - 1.0) / 99.0;
+    final double t = (score.clamp(1.0, 100.0) - 1.0) / 99.0;
+    
+    // An "infinite" spectrum feeling by interpolating through 5 vibrant stops
+    final colors = [
+      const Color(0xFFFF3D00), // Deep Red (Force)
+      const Color(0xFFFFD600), // Electric Yellow (Ambition)
+      const Color(0xFF00E676), // Spring Green (Growth)
+      const Color(0xFF00B0FF), // Azure Blue (Integrity)
+      const Color(0xFFAA00FF), // Deep Purple (Enlightenment)
+    ];
 
-    const Color startColor = Color(0xFFFF5252); // Red (Low Karma)
-    const Color midColor = Color(0xFFFFD740);   // Yellow/Ambition (Mid Karma)
-    const Color endColor = Color(0xFF00E676);   // Green/Peace (High Karma)
+    if (t <= 0) return colors.first;
+    if (t >= 1) return colors.last;
 
-    if (normalized < 0.5) {
-      // Interpolate between Red and Yellow
-      return Color.lerp(startColor, midColor, normalized * 2)!;
-    } else {
-      // Interpolate between Yellow and Green/Cyan
-      return Color.lerp(midColor, endColor, (normalized - 0.5) * 2)!;
-    }
+    final double segment = 1.0 / (colors.length - 1);
+    final int index = (t / segment).floor();
+    final double localT = (t - (index * segment)) / segment;
+
+    return Color.lerp(colors[index], colors[index + 1], localT)!;
+  }
+
+  static String getKarmaDescription(double score) {
+    if (score < 20) return "A NEW SOUL, READY TO IGNITE.";
+    if (score < 40) return "AMBITIOUS VIBES, BUILDING MOMENTUM.";
+    if (score < 60) return "IN THE FLOW, RADIATING GROWTH.";
+    if (score < 80) return "A PILLAR OF TRUST, CALM & STEADY.";
+    return "GOD-TIER INTEGRITY. ABSOLUTE LEGEND.";
   }
 
   static ThemeData get darkTheme {

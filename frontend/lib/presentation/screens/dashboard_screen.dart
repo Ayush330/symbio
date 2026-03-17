@@ -213,6 +213,17 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Text(
+                    KizunaTheme.getKarmaDescription(karmaScore),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 9,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
+                  ),
                 ],
               ),
             ),
