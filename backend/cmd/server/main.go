@@ -92,7 +92,7 @@ func main() {
 	mux.HandleFunc("/ws", wsHandler.ServeWS)
 
 	// Friends & Social
-	friendsHandler := auth.NewFriendsHandler(postgresDB, authService, fcmService)
+	friendsHandler := auth.NewFriendsHandler(postgresDB, authService, fcmService, twilioService)
 	mux.HandleFunc("/friends", friendsHandler.ListFriends)
 	mux.HandleFunc("/friends/requests", friendsHandler.ListFriendRequests)
 	mux.HandleFunc("/friends/request", friendsHandler.SendFriendRequest)
