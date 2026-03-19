@@ -125,13 +125,16 @@ jobs:
             echo '${{ secrets.FIREBASE_ADMIN_SDK }}' > backend/firebase-adminsdk.json
             
             # Login to GHCR (required if package is private)
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Create .env file from GitHub Secrets
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
             
+            # Pull the latest images from GHCR
+            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+
             # Restart all services (db, redis, kafka, api, nginx, certbot)
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
             
             # Cleanup
-            docker image prune -f
+            sudo docker image prune -f
