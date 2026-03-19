@@ -6,6 +6,11 @@ rsa_key_size=4096
 email="your-email@example.com" # Adding a valid email is highly recommended
 staging=0 # Set to 1 if you're testing to avoid hitting request limits
 
+# Ensure host directories exist with correct permissions
+mkdir -p "../../infra/nginx/certbot/conf"
+mkdir -p "../../infra/nginx/certbot/www"
+sudo chmod -R 777 "../../infra/nginx/certbot"
+
 echo "### Creating dummy certificate for $domains ..."
 sudo docker compose -f ../../docker-compose.yml -f ../../docker-compose.prod.yml run --rm --entrypoint "\
   sh -c 'mkdir -p /etc/letsencrypt/live/$domains && \
