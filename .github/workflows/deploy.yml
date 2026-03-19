@@ -105,7 +105,7 @@ jobs:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.yml,docker-compose.prod.yml,infra/**"
+          source: "docker-compose.yml,docker-compose.prod.yml,infra/docker/**,infra/nginx/**,infra/postgres/**"
           target: "~/symbio"
 
       - name: Deploy to EC2

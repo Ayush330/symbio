@@ -6,6 +6,8 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+import java.util.Properties
+
 android {
     namespace = "com.symbio.symbiosis_app"
     compileSdk = flutter.compileSdkVersion
@@ -23,7 +25,7 @@ android {
     }
 
     val keystorePropertiesFile = rootProject.file("key.properties")
-    val keystoreProperties = java.util.Properties()
+    val keystoreProperties = Properties()
     if (keystorePropertiesFile.exists()) {
         keystorePropertiesFile.inputStream().use { stream ->
             keystoreProperties.load(stream)
@@ -32,10 +34,10 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as? String
-            keyPassword = keystoreProperties["keyPassword"] as? String
-            storeFile = (keystoreProperties["storeFile"] as? String)?.let { path -> file(path) }
-            storePassword = keystoreProperties["storePassword"] as? String
+            keyAlias = keystoreProperties["keyAlias"]?.toString()
+            keyPassword = keystoreProperties["keyPassword"]?.toString()
+            storeFile = keystoreProperties["storeFile"]?.toString()?.let { path -> file(path) }
+            storePassword = keystoreProperties["storePassword"]?.toString()
         }
     }
 
