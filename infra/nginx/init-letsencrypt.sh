@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-domains=(kizuna.ayushanand.in)
+domains=(kizuna.anandayush.in)
 rsa_key_size=4096
 email="your-email@example.com" # Adding a valid email is highly recommended
 staging=0 # Set to 1 if you're testing to avoid hitting request limits

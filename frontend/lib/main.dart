@@ -35,8 +35,8 @@ void main() async {
     wsUrl = 'wss://kizuna.anandayush.in/ws';
   } else {
     // Development (Debug Mode / Run)
-    baseUrl = 'http://192.168.1.6:8080';
-    wsUrl = 'ws://192.168.1.6:8080/ws';
+    baseUrl = 'https://kizuna.anandayush.in';
+    wsUrl = 'wss://kizuna.anandayush.in/ws';
   }
 
   final dioClient = DioClient(baseUrl: baseUrl);
