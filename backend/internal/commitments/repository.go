@@ -29,25 +29,29 @@ type Commitment struct {
 	Points      int              `json:"points"`
 	Rating      int              `json:"rating"`
 	Status      CommitmentStatus `json:"status"`
+	Effort      int              `json:"effort"`
+	TimeTaken   int              `json:"time_taken"`
+	Sacrifice   int              `json:"sacrifice"`
+	Urgency     int              `json:"urgency"`
+	Intensity   float64          `json:"intensity"`
+	Explanation string           `json:"explanation,omitempty"`
 	CreatedAt   time.Time        `json:"created_at"`
 }
 
-type OutboxEvent struct {
-	ID            uuid.UUID `json:"id"`
-	AggregateType string    `json:"aggregate_type"`
-	AggregateID   uuid.UUID `json:"aggregate_id"`
-	EventType     string    `json:"event_type"`
-	Payload       string    `json:"payload"`
-	CreatedAt     time.Time `json:"created_at"`
-}
+// OutboxEvent removed
 
 // Request payloads
 type RequestCommitmentReq struct {
-	TargetUserID string `json:"target_user_id"`
-	Rating       int    `json:"rating,omitempty"` // 1-100
-	Text         string `json:"text,omitempty"`
-	Category     string `json:"category,omitempty"`
-	Points       int    `json:"points,omitempty"`
+	TargetUserID string  `json:"target_user_id"`
+	Rating       int     `json:"rating,omitempty"` // 1-100
+	Text         string  `json:"text,omitempty"`
+	Category     string  `json:"category,omitempty"`
+	Points       int     `json:"points,omitempty"`
+	Effort       int     `json:"effort,omitempty"`
+	TimeTaken    int     `json:"time_taken,omitempty"`
+	Sacrifice    int     `json:"sacrifice,omitempty"`
+	Urgency      int     `json:"urgency,omitempty"`
+	Intensity    float64 `json:"intensity,omitempty"`
 }
 
 type AcceptCommitmentReq struct {
@@ -65,7 +69,6 @@ type Repository interface {
 	CreateCommitment(ctx context.Context, tx *sql.Tx, c *Commitment) error
 	GetCommitment(ctx context.Context, id uuid.UUID) (*Commitment, error)
 	UpdateCommitmentStatus(ctx context.Context, tx *sql.Tx, id uuid.UUID, status CommitmentStatus) error
-	InsertOutboxEvent(ctx context.Context, tx *sql.Tx, event *OutboxEvent) error
 	GetRelationship(ctx context.Context, tx *sql.Tx, relID uuid.UUID) (uuid.UUID, uuid.UUID, error)
 	UpdateReciprocityScore(ctx context.Context, tx *sql.Tx, relID uuid.UUID, initiatorID uuid.UUID, scoreDelta float64) error
 }
@@ -102,23 +105,25 @@ func (r *postgresRepository) GetActiveRelationship(ctx context.Context, tx *sql.
 
 func (r *postgresRepository) CreateCommitment(ctx context.Context, tx *sql.Tx, c *Commitment) error {
 	query := `
-		INSERT INTO commitments (rel_id, initiator_id, target_id, text, category, points, rating, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO commitments (rel_id, initiator_id, target_id, text, category, points, rating, status, effort, time_taken, sacrifice, urgency, intensity, explanation)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at
 	`
 	return tx.QueryRowContext(ctx, query,
 		c.RelID, c.InitiatorID, c.TargetID, c.Text, c.Category, c.Points, c.Rating, c.Status,
+		c.Effort, c.TimeTaken, c.Sacrifice, c.Urgency, c.Intensity, c.Explanation,
 	).Scan(&c.ID, &c.CreatedAt)
 }
 
 func (r *postgresRepository) GetCommitment(ctx context.Context, id uuid.UUID) (*Commitment, error) {
 	query := `
-		SELECT id, rel_id, initiator_id, target_id, text, category, points, rating, status, created_at
+		SELECT id, rel_id, initiator_id, target_id, text, category, points, rating, status, effort, time_taken, sacrifice, urgency, intensity, COALESCE(explanation, ''), created_at
 		FROM commitments WHERE id = $1
 	`
 	c := &Commitment{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&c.ID, &c.RelID, &c.InitiatorID, &c.TargetID, &c.Text, &c.Category, &c.Points, &c.Rating, &c.Status, &c.CreatedAt,
+		&c.ID, &c.RelID, &c.InitiatorID, &c.TargetID, &c.Text, &c.Category, &c.Points, &c.Rating, &c.Status,
+		&c.Effort, &c.TimeTaken, &c.Sacrifice, &c.Urgency, &c.Intensity, &c.Explanation, &c.CreatedAt,
 	)
 	return c, err
 }
@@ -128,15 +133,7 @@ func (r *postgresRepository) UpdateCommitmentStatus(ctx context.Context, tx *sql
 	return err
 }
 
-func (r *postgresRepository) InsertOutboxEvent(ctx context.Context, tx *sql.Tx, event *OutboxEvent) error {
-	query := `
-		INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload)
-		VALUES ($1, $2, $3, $4)
-	`
-	// Payload is text (JSON), postgres will cast to JSONB
-	_, err := tx.ExecContext(ctx, query, event.AggregateType, event.AggregateID, event.EventType, event.Payload)
-	return err
-}
+// InsertOutboxEvent removed
 
 func (r *postgresRepository) GetRelationship(ctx context.Context, tx *sql.Tx, relID uuid.UUID) (uuid.UUID, uuid.UUID, error) {
 	var a, b uuid.UUID

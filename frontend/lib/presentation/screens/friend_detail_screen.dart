@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import '../blocs/friends_bloc.dart';
 import '../widgets/glass_container.dart';
+import 'commitment_portal.dart';
 import 'favour_detail_screen.dart';
 
 class FriendDetailScreen extends StatefulWidget {
   final String friendId;
   final String friendName;
+  final String friendEmail;
   final double health;
 
   const FriendDetailScreen({
     super.key,
     required this.friendId,
     required this.friendName,
+    required this.friendEmail,
     required this.health,
   });
 
@@ -46,203 +50,151 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: Text(widget.friendName.toUpperCase(),
-            style: const TextStyle(letterSpacing: 3, fontWeight: FontWeight.w900, fontSize: 16)),
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-                _buildHealthGauge(),
-                const SizedBox(height: 32),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: [
-                      const Text('ACTIVITY TIMELINE',
-                          style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
-                      const Spacer(),
-                      Text('${_activities.length} events',
-                          style: TextStyle(fontSize: 12, color: Colors.white24)),
+    return BlocListener<FriendsBloc, FriendsState>(
+      listener: (context, state) {
+        if (state is FriendsLoaded) {
+          _loadActivity();
+        }
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.friendName.toUpperCase(),
+              style: const TextStyle(letterSpacing: 3, fontWeight: FontWeight.w900, fontSize: 16)),
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF0F0F1E),
+                      KizunaTheme.primaryBlue.withValues(alpha: 0.05),
+                      const Color(0xFF0F0F1E),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _activities.isEmpty
-                          ? _buildEmptyActivity()
-                          : _buildActivityList(),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            _isLoading
+                ? const Center(child: CircularProgressIndicator(color: KizunaTheme.primaryBlue))
+                : SafeArea(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        _buildHealthGauge(),
+                        const SizedBox(height: 32),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Row(
+                            children: [
+                              const Text('ACTIVITY TIMELINE',
+                                  style: TextStyle(fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.w900, color: Colors.white38)),
+                              const Spacer(),
+                              Text('${_activities.length} events',
+                                  style: const TextStyle(fontSize: 12, color: Colors.white24)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: _activities.isEmpty
+                              ? _buildEmptyActivity()
+                              : _buildActivityList(),
+                        ),
+                      ],
+                    ),
+                  ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHealthGauge() {
-    return Center(
-      child: Column(
-        children: [
-          Icon(
-            Icons.favorite,
-            color: KizunaTheme.getKarmaColor(widget.health),
-            size: 80,
-            shadows: [
-              Shadow(
-                color: KizunaTheme.getKarmaColor(widget.health).withOpacity(0.5),
-                blurRadius: 40,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.health.toStringAsFixed(0),
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              color: KizunaTheme.getKarmaColor(widget.health),
-              letterSpacing: -2,
-            ),
-          ),
-          Text(
-            'CONNECTION SCORE',
-            style: TextStyle(
-              fontSize: 12,
-              letterSpacing: 4,
-              fontWeight: FontWeight.bold,
-              color: Colors.white.withOpacity(0.4),
-            ),
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton.icon(
-            onPressed: () => _showCreateFavourDialog(),
-            icon: const Icon(Icons.add, color: Colors.black),
-            label: const Text('CREATE FAVOUR'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: KizunaTheme.primaryBlue,
-              foregroundColor: Colors.black,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    return BlocBuilder<FriendsBloc, FriendsState>(
+      builder: (context, state) {
+        double currentHealth = widget.health;
+        if (state is FriendsLoaded) {
+          final friend = state.friends.firstWhere(
+            (f) => f['id'] == widget.friendId,
+            orElse: () => null,
+          );
+          if (friend != null) {
+            currentHealth = (friend['karma_score'] as num?)?.toDouble() ?? currentHealth;
+          }
+        }
 
-  void _handleClassification(String text) async {
-    if (text.isEmpty) return;
-
-    setState(() => _isLoading = true);
-    try {
-      final repo = context.read<FriendsRepository>();
-      final classification = await repo.classifyFavour(text);
-      
-      if (mounted) {
-        _showConfirmationDialog(text, classification['category'], classification['points']);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Classification Error: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showConfirmationDialog(String text, String category, int points) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: KizunaTheme.surfaceGlass,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: KizunaTheme.primaryBlue.withOpacity(0.2)),
-        ),
-        title: const Text('CLASSIFICATION', style: TextStyle(color: Colors.white, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        return Column(
           children: [
-            Text(category.toUpperCase(), style: const TextStyle(color: KizunaTheme.primaryBlue, fontSize: 24, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            Text('+$points POINTS', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+            Icon(
+              Icons.favorite,
+              color: KizunaTheme.getKarmaColor(currentHealth),
+              size: 80,
+              shadows: [
+                Shadow(
+                  color: KizunaTheme.getKarmaColor(currentHealth).withValues(alpha: 0.5),
+                  blurRadius: 40,
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
-            Text('“$text”', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 12, fontStyle: FontStyle.italic)),
+            Text(
+              currentHealth.toStringAsFixed(0),
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
+                color: KizunaTheme.getKarmaColor(currentHealth),
+                letterSpacing: -2,
+              ),
+            ),
+            Text(
+              'CONNECTION SCORE',
+              style: TextStyle(
+                fontSize: 12,
+                letterSpacing: 4,
+                fontWeight: FontWeight.bold,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => _showCreateFavourPortal(),
+              icon: const Icon(Icons.add, color: Colors.black),
+              label: const Text('CREATE FAVOUR'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: KizunaTheme.primaryBlue,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
           ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('EDIT', style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _submitFavour(text, category, points);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: KizunaTheme.primaryBlue, foregroundColor: Colors.black),
-            child: const Text('CONFIRM'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  void _submitFavour(String text, String category, int points) async {
-    setState(() => _isLoading = true);
-    try {
-      final repo = context.read<FriendsRepository>();
-      await repo.createFavour(widget.friendId, text, category: category, points: points);
-      if (mounted) {
-        _loadActivity();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Favour recorded.')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showCreateFavourDialog() {
-    final controller = TextEditingController();
-    showDialog(
+  void _showCreateFavourPortal() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: KizunaTheme.surfaceGlass,
-        title: const Text('New Favour', style: TextStyle(color: Colors.white, letterSpacing: 2)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: 'What did you do?', hintStyle: TextStyle(color: Colors.white24)),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL', style: TextStyle(color: Colors.white38))),
-          TextButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isEmpty) return;
-              Navigator.pop(context);
-              _handleClassification(text);
-            },
-            child: const Text('NEXT', style: TextStyle(color: KizunaTheme.primaryBlue)),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CommitmentPortal(
+        initialEmail: widget.friendEmail,
+        targetUserId: widget.friendId,
       ),
-    );
+    ).then((_) => _loadActivity());
   }
 
   Widget _buildEmptyActivity() {
@@ -250,9 +202,9 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.timeline_outlined, size: 48, color: Colors.white10),
+          const Icon(Icons.timeline_outlined, size: 48, color: Colors.white10),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'No activity yet',
             style: TextStyle(color: Colors.white30, letterSpacing: 1.2),
           ),
@@ -287,7 +239,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
             ),
             child: GlassContainer(
               padding: const EdgeInsets.all(16),
-              borderColor: baseColor.withOpacity(opacity),
+              borderColor: baseColor.withValues(alpha: opacity),
               child: Row(
                 children: [
                   Expanded(
@@ -301,7 +253,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                         const SizedBox(height: 4),
                         Text(
                           '${f['category']?.toUpperCase() ?? 'OTHER'} • ${f['created_at'].toString().substring(0, 10)}',
-                          style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4), letterSpacing: 1),
+                          style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
                         ),
                       ],
                     ),
@@ -310,7 +262,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                   Text(
                     '${isGiven ? "+" : "-"}$points',
                     style: TextStyle(
-                      color: baseColor.withOpacity(opacity),
+                      color: baseColor.withValues(alpha: opacity),
                       fontWeight: FontWeight.w900,
                       fontSize: 18,
                     ),
@@ -321,34 +273,6 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
           ),
         );
       },
-    );
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'ACKNOWLEDGED':
-        return const Color(0xFF00E676);
-      case 'PENDING':
-        return const Color(0xFFFFD740);
-      case 'DENIED':
-      case 'FLAKED':
-        return const Color(0xFFFF5252);
-      default:
-        return Colors.white38;
-    }
-  }
-
-  Widget _buildStatusChip(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _statusColor(status).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _statusColor(status), letterSpacing: 0.5),
-      ),
     );
   }
 }

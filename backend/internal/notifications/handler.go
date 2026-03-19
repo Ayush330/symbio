@@ -9,12 +9,11 @@ import (
 )
 
 type Handler struct {
-	Twilio *TwilioService
-	Users  auth.Repository // We need auth repo to find the inviter's name
+	Users auth.Repository // We need auth repo to find the inviter's name
 }
 
-func NewHandler(t *TwilioService, userRepo auth.Repository) *Handler {
-	return &Handler{Twilio: t, Users: userRepo}
+func NewHandler(userRepo auth.Repository) *Handler {
+	return &Handler{Users: userRepo}
 }
 
 type InviteRequest struct {
@@ -49,10 +48,6 @@ func (h *Handler) SendInvite(w http.ResponseWriter, r *http.Request) {
 
 	// In a complete app, we'd have GetUserByID, using a mock default or we could simply skip pulling name
 	// For now, let's extract it from DB:
-	// Since GetUserByID might not exist on the simplified repo, we will pass "A friend" as fallback or we can add it later.
-	// But let's assume we want to push the basic flow.
-	inviterName := "A friend"
-
 	var req InviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		transport.SendError(w, http.StatusBadRequest, "Invalid request body")
@@ -64,17 +59,5 @@ func (h *Handler) SendInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.Twilio == nil {
-		transport.SendError(w, http.StatusServiceUnavailable, "SMS service unavailable")
-		return
-	}
-
-	err = h.Twilio.SendInvite(req.PhoneNumber, inviterName, false)
-	if err != nil {
-		// Log it, but return generic error to client
-		transport.SendError(w, http.StatusInternalServerError, "Failed to send invite")
-		return
-	}
-
-	transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "invite_sent"})
+	transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "invite_logged"})
 }

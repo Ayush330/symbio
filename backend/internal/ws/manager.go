@@ -1,6 +1,6 @@
 package ws
 
-import "log"
+import "github.com/Ayush330/symbio/backend/internal/logger"
 
 type Envelope struct{
 	TargetID string // The UserId we want to reach
@@ -30,12 +30,12 @@ func (m *Manager) Run() {
 		select {
 		case client := <-m.Register:
 			m.Clients[client] = true
-			log.Printf("Client %s registered", client.UserID)
+			logger.Info("WS Client registered", "userID", client.UserID)
 		case client := <-m.Unregister:
 			if _, ok := m.Clients[client]; ok {
 				delete(m.Clients, client)
 				close(client.Send)
-				log.Printf("Client %s unregistered", client.UserID)
+				logger.Info("WS Client unregistered", "userID", client.UserID)
 			}
 		case message := <-m.Message:
 			// Send only to the required players
@@ -52,9 +52,9 @@ func (m *Manager) Run() {
 				}
 			}
 			if !matchFound {
-				log.Printf("WS: No active clients found for UserID %s (Total clients: %d)", message.TargetID, len(m.Clients))
+				logger.Warn("WS: No active clients found", "targetID", message.TargetID, "totalClients", len(m.Clients))
 			} else {
-				log.Printf("WS: Message delivered to UserID %s", message.TargetID)
+				logger.Debug("WS: Message delivered", "targetID", message.TargetID)
 			}
 		case message := <-m.Broadcast:
 			for client := range m.Clients {

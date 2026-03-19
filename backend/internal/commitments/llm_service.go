@@ -15,27 +15,27 @@ import (
 type FavourCategory string
 
 const (
-	CategoryHealth      FavourCategory = "health"
-	CategoryFamily      FavourCategory = "family"
-	CategoryMoney       FavourCategory = "money"
-	CategoryCareer      FavourCategory = "career"
-	CategoryStartup     FavourCategory = "startup"
-	CategoryEmotional   FavourCategory = "emotional"
-	CategoryEducation   FavourCategory = "education"
-	CategoryMentorship  FavourCategory = "mentorship"
-	CategoryNetworking  FavourCategory = "networking"
-	CategoryTech        FavourCategory = "tech"
-	CategoryTravel      FavourCategory = "travel"
-	CategoryCommunity   FavourCategory = "community"
-	CategorySocial      FavourCategory = "social"
-	CategoryHousehold   FavourCategory = "household"
-	CategoryFitness     FavourCategory = "fitness"
-	CategoryFood        FavourCategory = "food"
-	CategoryFun         FavourCategory = "fun"
-	CategoryEmergency   FavourCategory = "emergency"
-	CategoryLegal       FavourCategory = "legal"
+	CategoryHealth       FavourCategory = "health"
+	CategoryFamily       FavourCategory = "family"
+	CategoryMoney        FavourCategory = "money"
+	CategoryCareer       FavourCategory = "career"
+	CategoryStartup      FavourCategory = "startup"
+	CategoryEmotional    FavourCategory = "emotional"
+	CategoryEducation    FavourCategory = "education"
+	CategoryMentorship   FavourCategory = "mentorship"
+	CategoryNetworking   FavourCategory = "networking"
+	CategoryTech         FavourCategory = "tech"
+	CategoryTravel       FavourCategory = "travel"
+	CategoryCommunity    FavourCategory = "community"
+	CategorySocial       FavourCategory = "social"
+	CategoryHousehold    FavourCategory = "household"
+	CategoryFitness      FavourCategory = "fitness"
+	CategoryFood         FavourCategory = "food"
+	CategoryFun          FavourCategory = "fun"
+	CategoryEmergency    FavourCategory = "emergency"
+	CategoryLegal        FavourCategory = "legal"
 	CategoryRelationship FavourCategory = "relationship"
-	CategoryOther       FavourCategory = "other"
+	CategoryOther        FavourCategory = "other"
 )
 
 var CategoryWeights = map[FavourCategory]int{
@@ -93,7 +93,7 @@ func (k *KeywordClassifier) Classify(ctx context.Context, text string) (FavourCa
 	} else if containsAny(text, "money", "cash", "paid", "bill", "rent", "loan", "split") {
 		cat = CategoryMoney
 	}
-	
+
 	metrics := k.calculateDeterministic(cat, 3, 3, 2, 2, "Keyword fallback")
 	return cat, metrics.FinalScore, nil
 }
@@ -155,6 +155,7 @@ func (g *GeminiClassifier) Classify(ctx context.Context, text string) (FavourCat
 
 func (g *GeminiClassifier) Analyze(ctx context.Context, text string) (*KarmaMetrics, error) {
 	if g.ApiKey == "" {
+		log.Println("No API key provided, using fallback")
 		return g.Fallback.Analyze(ctx, text)
 	}
 
@@ -166,7 +167,7 @@ func (g *GeminiClassifier) Analyze(ctx context.Context, text string) (*KarmaMetr
 
 	model := client.GenerativeModel("gemini-1.5-flash")
 	model.ResponseMIMEType = "application/json"
-	
+
 	prompt := fmt.Sprintf(`
 Analyze this favor and return a JSON object with:
 - "category": choose from %v

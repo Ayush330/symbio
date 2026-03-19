@@ -15,9 +15,13 @@ class AuthRepository {
       });
       
       final token = response.data['token'];
+      final userName = response.data['user']['name'];
       if (token != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
+        if (userName != null) {
+          await prefs.setString('user_name', userName);
+        }
         await fetchAndCacheFavourConfig();
         return token;
       }
@@ -43,6 +47,7 @@ class AuthRepository {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('jwt_token');
+    await prefs.remove('user_name');
   }
 
   Future<bool> isLoggedIn() async {
@@ -53,6 +58,11 @@ class AuthRepository {
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('jwt_token');
+  }
+
+  Future<String?> getUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_name');
   }
   Future<void> forgotPassword(String email) async {
     try {

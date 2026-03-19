@@ -53,12 +53,12 @@ class RelationshipStats {
 
   factory RelationshipStats.fromJson(Map<String, dynamic> json) {
     return RelationshipStats(
-      score: (json['score'] as num).toDouble(),
-      color: json['color'],
-      totalGiven: json['total_given'],
-      totalReceived: json['total_received'],
-      pointsGiven: json['points_given'],
-      pointsReceived: json['points_received'],
+      score: (json['score'] as num?)?.toDouble() ?? 50.0,
+      color: json['color']?.toString() ?? '#808080',
+      totalGiven: (json['total_given'] as num?)?.toInt() ?? 0,
+      totalReceived: (json['total_received'] as num?)?.toInt() ?? 0,
+      pointsGiven: (json['points_given'] as num?)?.toInt() ?? 0,
+      pointsReceived: (json['points_received'] as num?)?.toInt() ?? 0,
       karmaScore: (json['karma_score'] as num?)?.toDouble() ?? 1.0,
     );
   }
@@ -73,6 +73,7 @@ class ProfileStats {
   final int netFavours;
   final int netPoints;
   final double karmaScore;
+  final String? name;
 
   ProfileStats({
     required this.totalFavoursGiven,
@@ -82,17 +83,19 @@ class ProfileStats {
     required this.netFavours,
     required this.netPoints,
     required this.karmaScore,
+    this.name,
   });
 
   factory ProfileStats.fromJson(Map<String, dynamic> json) {
     return ProfileStats(
-      totalFavoursGiven: json['total_favours_given'],
-      totalFavoursReceived: json['total_favours_received'],
-      totalPointsGiven: json['total_points_given'],
-      totalPointsReceived: json['total_points_received'],
-      netFavours: json['net_favours'] ?? 0,
-      netPoints: json['net_points'] ?? 0,
+      totalFavoursGiven: (json['total_favours_given'] as num?)?.toInt() ?? 0,
+      totalFavoursReceived: (json['total_favours_received'] as num?)?.toInt() ?? 0,
+      totalPointsGiven: (json['total_points_given'] as num?)?.toInt() ?? 0,
+      totalPointsReceived: (json['total_points_received'] as num?)?.toInt() ?? 0,
+      netFavours: (json['net_favours'] as num?)?.toInt() ?? 0,
+      netPoints: (json['net_points'] as num?)?.toInt() ?? 0,
       karmaScore: (json['karma_score'] as num?)?.toDouble() ?? 1.0,
+      name: json['name']?.toString(),
     );
   }
 }

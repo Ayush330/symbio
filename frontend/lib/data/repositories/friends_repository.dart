@@ -75,19 +75,38 @@ class FriendsRepository {
     await dioClient.post('/friends/reject', data: {'rel_id': relId});
   }
 
-  Future<Map<String, dynamic>> createFavour(String toUserId, String text, {String? category, int? points}) async {
+  Future<Map<String, dynamic>> createFavour(
+    String toUserId,
+    String text, {
+    String? category,
+    int? points,
+    int? effort,
+    int? timeTaken,
+    int? sacrifice,
+    int? urgency,
+    double? intensity,
+  }) async {
     final response = await dioClient.post('/favour/create', data: {
       'target_user_id': toUserId,
       'text': text,
       if (category != null) 'category': category,
       if (points != null) 'points': points,
+      if (effort != null) 'effort': effort,
+      if (timeTaken != null) 'time_taken': timeTaken,
+      if (sacrifice != null) 'sacrifice': sacrifice,
+      if (urgency != null) 'urgency': urgency,
+      if (intensity != null) 'intensity': intensity,
     });
     return response.data as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> classifyFavour(String text) async {
     final response = await dioClient.post('/favour/classify', data: {'text': text});
-    return response.data as Map<String, dynamic>;
+    var data = response.data;
+    if (data is String) {
+      data = jsonDecode(data);
+    }
+    return Map<String, dynamic>.from(data as Map);
   }
 
   Future<Map<String, dynamic>> getRelationshipStats(String friendId) async {
@@ -97,7 +116,11 @@ class FriendsRepository {
 
   Future<Map<String, dynamic>> getProfileStats() async {
     final response = await dioClient.get('/profile/stats');
-    return response.data as Map<String, dynamic>;
+    var data = response.data;
+    if (data is String) {
+      data = jsonDecode(data);
+    }
+    return Map<String, dynamic>.from(data as Map);
   }
 
   Future<List<dynamic>> getActivityGraph() async {

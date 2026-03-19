@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class KizunaTheme {
   static const Color primaryBlue = Color(0xFF00D2FF);
   static const Color accentCyan = Color(0xFF3A7BD5);
+  static const Color primaryPurple = Color(0xFFAA00FF);
   static const Color backgroundBlack = Color(0xFF050505);
   static const Color surfaceGlass = Color(0xFF151515);
 

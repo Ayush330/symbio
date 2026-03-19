@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/repositories/friends_repository.dart';
 import '../widgets/glass_container.dart';
 import '../../data/models/favour_models.dart';
+import '../blocs/friends_bloc.dart';
 
 class ActivityTab extends StatefulWidget {
   const ActivityTab({super.key});
@@ -39,21 +40,28 @@ class _ActivityTabState extends State<ActivityTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text('ACTIVITY', style: TextStyle(letterSpacing: 4, fontWeight: FontWeight.w900)),
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_graphData.isEmpty)
-            _buildEmptyState()
-          else
-            _buildContent(),
-        ],
+    return BlocListener<FriendsBloc, FriendsState>(
+      listener: (context, state) {
+        if (state is FriendsLoaded) {
+          _loadGraph();
+        }
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          title: const Text('ACTIVITY', style: TextStyle(letterSpacing: 4, fontWeight: FontWeight.w900)),
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(child: Container(color: KizunaTheme.backgroundBlack)),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_graphData.isEmpty)
+              _buildEmptyState()
+            else
+              _buildContent(),
+          ],
+        ),
       ),
     );
   }

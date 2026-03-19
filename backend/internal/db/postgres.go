@@ -3,7 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"github.com/Ayush330/symbio/backend/internal/logger"
 	"os"
 	"time"
 
@@ -50,6 +50,6 @@ func NewPostgresDB() (*sql.DB, error) {
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	log.Println("Successfully connected to Postgres!")
+	logger.Info("Successfully connected to Postgres")
 	return db, nil
 }

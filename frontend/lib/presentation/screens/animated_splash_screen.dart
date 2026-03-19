@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import '../../core/theme/app_theme.dart';
 
 class AnimatedSplashScreen extends StatefulWidget {
@@ -42,7 +43,11 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
       CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.4, curve: Curves.easeIn)),
     );
 
-    _playSting();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _playSting();
+      FlutterNativeSplash.remove(); // Remove native splash when Flutter starts
+    });
+    
     _controller.forward().then((_) {
       Future.delayed(const Duration(milliseconds: 500), () {
         widget.onInitializationComplete();
@@ -52,10 +57,25 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
 
   Future<void> _playSting() async {
     try {
-      // High-end minimalist UI "whoosh/sting" sound
-      await _audioPlayer.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'));
+      if (!mounted) return;
+      
+      // Give the engine a moment to stabilize
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
+
+      final source = UrlSource('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+      
+      // Explicitly set source before playing
+      await _audioPlayer.setSource(source);
+      
+      if (mounted) {
+        // Only resume if still valid and not playing
+        await _audioPlayer.resume();
+      }
     } catch (e) {
-      debugPrint('Audio play error: $e');
+      if (mounted) {
+        debugPrint('Audio play error: $e');
+      }
     }
   }
 
@@ -69,26 +89,21 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: KizunaTheme.backgroundBlack,
+      backgroundColor: const Color(0xFF0D0D0D), // Match native splash exactly
       body: Stack(
         alignment: Alignment.center,
         children: [
-          // Background ambient pulse
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      KizunaTheme.primaryBlue.withValues(alpha: 0.05 * _opacityAnimation.value),
-                      Colors.transparent,
-                    ],
-                    radius: 1.5 * _scaleAnimation.value,
-                  ),
-                ),
-              );
-            },
+          // Static background ambient pulse
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [
+                  KizunaTheme.primaryBlue.withValues(alpha: 0.03),
+                  Colors.transparent,
+                ],
+                radius: 1.5,
+              ),
+            ),
           ),
           
           // Logo Animation
@@ -99,76 +114,74 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                 opacity: _opacityAnimation.value,
                 child: Transform.scale(
                   scale: _scaleAnimation.value,
-                  child: ImageFiltered(
-                    imageFilter: ColorFilter.mode(
-                      Colors.transparent, 
-                      BlendMode.multiply,
-                    ),
-                    // Adding a subtle blur that clears up
-                    child: Container(
-                      padding: const EdgeInsets.all(40),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Shadow/Glow layer
-                          Container(
-                            width: 140,
-                            height: 140,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: KizunaTheme.primaryBlue.withValues(alpha: 0.2 * _opacityAnimation.value),
-                                  blurRadius: 40,
-                                  spreadRadius: 10,
-                                ),
-                              ],
-                            ),
-                          ),
-                          // The main logo
-                          Image.asset(
-                            'assets/icon/app_icon.png',
-                            width: 180,
-                            height: 180,
+                  child: child,
+                ),
+              );
+            },
+            child: RepaintBoundary(
+              child: Container(
+                padding: const EdgeInsets.all(40),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Shadow/Glow layer
+                    Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: KizunaTheme.primaryBlue.withValues(alpha: 0.1),
+                            blurRadius: 20,
+                            spreadRadius: 4,
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    // The main logo
+                    Image.asset(
+                      'assets/images/kizuna_icon.png',
+                      width: MediaQuery.of(context).size.width * 0.5,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
           
           // Text Animation
           Positioned(
             bottom: 80,
-            child: FadeTransition(
-              opacity: _opacityAnimation,
-              child: Column(
-                children: [
-                  Text(
-                    'KIZUNA',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 12,
-                      shadows: [
-                        Shadow(
-                          color: KizunaTheme.primaryBlue.withValues(alpha: 0.5),
-                          blurRadius: 10,
-                        ),
-                      ],
+            child: RepaintBoundary(
+              child: FadeTransition(
+                opacity: _opacityAnimation,
+                child: Column(
+                  children: [
+                    Text(
+                      'KIZUNA',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 12,
+                        shadows: [
+                          Shadow(
+                            color: KizunaTheme.primaryBlue.withValues(alpha: 0.5),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 1,
-                    color: KizunaTheme.primaryBlue.withValues(alpha: 0.3),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 1,
+                      color: KizunaTheme.primaryBlue.withValues(alpha: 0.3),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

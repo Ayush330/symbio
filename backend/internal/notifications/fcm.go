@@ -3,7 +3,7 @@ package notifications
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/Ayush330/symbio/backend/internal/logger"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -31,11 +31,11 @@ func NewFCMService(credentialsPath string) (*FCMService, error) {
 
 func (s *FCMService) SendPushNotification(ctx context.Context, token, title, body string, data map[string]string) error {
 	if s == nil || s.client == nil {
-		log.Printf("FCM: Attempted to send to %s but service/client is nil", token)
+		logger.Warn("FCM: Attempted to send but service/client is nil", "token", token)
 		return nil 
 	}
 	if token == "" {
-		log.Printf("FCM: Attempted to send but token is empty")
+		logger.Warn("FCM: Attempted to send but token is empty")
 		return nil 
 	}
 
@@ -79,14 +79,14 @@ func (s *FCMService) SendPushNotification(ctx context.Context, token, title, bod
 		Token: token,
 	}
 
-	log.Printf("FCM: Sending message to %s (Title: %s, Color: %s, Icon: %s)", token, title, color, icon)
+	logger.Info("FCM: Sending message", "token", token, "title", title, "color", color, "icon", icon)
 	msgID, err := s.client.Send(ctx, message)
 	if err != nil {
-		log.Printf("FCM: FAILED to send to %s: %v", token, err)
+		logger.Error("FCM: FAILED to send", "token", token, "error", err)
 		return err
 	}
 
-	log.Printf("FCM: Successfully sent message to %s. ID: %s", token, msgID)
+	logger.Info("FCM: Successfully sent message", "token", token, "msgID", msgID)
 	return nil
 }
 

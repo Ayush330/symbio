@@ -293,6 +293,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
             builder: (_) => FriendDetailScreen(
               friendId: friend['id'],
               friendName: friend['name'] ?? 'Unknown',
+              friendEmail: friend['email'] ?? '',
               health: karma,
             ),
           ),

@@ -105,7 +105,7 @@ jobs:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.yml,infra/**"
+          source: "docker-compose.yml,docker-compose.prod.yml,infra/**"
           target: "~/symbio"
 
       - name: Deploy to EC2
@@ -128,13 +128,10 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Create .env file from GitHub Secrets
-            echo "TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}" > .env
-            echo "TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}" >> .env
-            echo "TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}" >> .env
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
             
-            # Restart all services (db, redis, kafka, api)
-            docker compose up -d
+            # Restart all services (db, redis, kafka, api, nginx, certbot)
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
             
             # Cleanup
             docker image prune -f

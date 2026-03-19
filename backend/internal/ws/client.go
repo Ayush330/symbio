@@ -3,7 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"github.com/Ayush330/symbio/backend/internal/logger"
 
 	"github.com/Ayush330/symbio/backend/internal/commitments"
 	"github.com/google/uuid"
@@ -33,7 +33,7 @@ func (c *Client) ReadPump() {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				logger.Error("WS Read Error", "userID", c.UserID, "error", err)
 			}
 			break
 		}
@@ -45,13 +45,13 @@ func (c *Client) ReadPump() {
 func (c *Client) handleMessage(raw []byte) {
 	var msg WSMessage
 	if err := json.Unmarshal(raw, &msg); err != nil {
-		log.Printf("Error unmarshaling WS message: %v", err)
+		logger.Error("Error unmarshaling WS message", "error", err)
 		return
 	}
 
 	userUUID, err := uuid.Parse(c.UserID)
 	if err != nil {
-		log.Printf("Invalid user ID in client: %v", err)
+		logger.Error("Invalid user ID in client", "userID", c.UserID, "error", err)
 		return
 	}
 
@@ -61,12 +61,12 @@ func (c *Client) handleMessage(raw []byte) {
 	case "request_commitment":
 		var req commitments.RequestCommitmentReq
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
-			log.Printf("Invalid request_commitment data: %v", err)
+			logger.Error("Invalid request_commitment data", "error", err)
 			return
 		}
 		comm, err := c.CommitmentsService.RequestCommitment(ctx, userUUID, req)
 		if err != nil {
-			log.Printf("Failed to request commitment: %v", err)
+			logger.Error("Failed to request commitment", "userID", c.UserID, "error", err)
 		} else {
 			// Notify the target user
 			commBytes, _ := json.Marshal(comm)
@@ -83,12 +83,12 @@ func (c *Client) handleMessage(raw []byte) {
 	case "accept_commitment":
 		var req commitments.AcceptCommitmentReq
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
-			log.Printf("Invalid accept_commitment data: %v", err)
+			logger.Error("Invalid accept_commitment data", "error", err)
 			return
 		}
 		comm, err := c.CommitmentsService.AcceptCommitment(ctx, userUUID, req)
 		if err != nil {
-			log.Printf("Failed to accept commitment: %v", err)
+			logger.Error("Failed to accept commitment", "userID", c.UserID, "error", err)
 		} else {
 			// Notify both parties of the state change
 			commBytes, _ := json.Marshal(comm)
@@ -112,12 +112,12 @@ func (c *Client) handleMessage(raw []byte) {
 	case "deny_commitment":
 		var req commitments.DenyCommitmentReq
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
-			log.Printf("Invalid deny_commitment data: %v", err)
+			logger.Error("Invalid deny_commitment data", "error", err)
 			return
 		}
 		comm, err := c.CommitmentsService.DenyCommitment(ctx, userUUID, req)
 		if err != nil {
-			log.Printf("Failed to deny commitment: %v", err)
+			logger.Error("Failed to deny commitment", "userID", c.UserID, "error", err)
 		} else {
 			// Notify the initiator
 			commBytes, _ := json.Marshal(comm)
@@ -136,7 +136,7 @@ func (c *Client) handleMessage(raw []byte) {
 		return
 
 	default:
-		log.Printf("Unknown message type: %s", msg.Type)
+		logger.Warn("Unknown message type", "type", msg.Type, "userID", c.UserID)
 	}
 }
 
@@ -157,10 +157,10 @@ func (c *Client) WritePump() {
 			// Send each message in its own frame to avoid parsing issues on mobile
 			err := c.Conn.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
-				log.Printf("WS: Write error for user %s: %v", c.UserID, err)
+				logger.Error("WS Write Error", "userID", c.UserID, "error", err)
 				return
 			}
-			log.Printf("WS: Frame delivered to user %s (Size: %d bytes)", c.UserID, len(message))
+			logger.Debug("WS: Frame delivered", "userID", c.UserID, "size", len(message))
 		}
 	}
 }

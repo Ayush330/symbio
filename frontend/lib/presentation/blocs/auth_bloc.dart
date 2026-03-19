@@ -40,9 +40,10 @@ class AuthInitial extends AuthState {}
 class AuthLoading extends AuthState {}
 class Authenticated extends AuthState {
   final String token;
-  Authenticated(this.token);
+  final String userName;
+  Authenticated(this.token, {this.userName = ''});
   @override
-  List<Object?> get props => [token];
+  List<Object?> get props => [token, userName];
 }
 class Unauthenticated extends AuthState {}
 class AuthFailure extends AuthState {
@@ -61,8 +62,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final isLoggedIn = await authRepository.isLoggedIn();
       if (isLoggedIn) {
         final token = await authRepository.getToken();
-        await authRepository.fetchAndCacheFavourConfig();
-        emit(Authenticated(token ?? '')); 
+        final name = await authRepository.getUserName();
+        
+        // Emit IMMEDIATELY so the splash screen goes away and we don't block LogoutRequested
+        emit(Authenticated(token ?? '', userName: name ?? ''));
+        
+        // Fetch config in background after emitting initial state
+        try {
+          await authRepository.fetchAndCacheFavourConfig();
+        } catch (e) {
+          // Errors are handled by the repository (logging) and Dio interceptor (401 logout)
+        }
       } else {
         emit(Unauthenticated());
       }
@@ -72,8 +82,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthLoading());
       try {
         final token = await authRepository.login(event.email, event.password);
+        final name = await authRepository.getUserName();
         if (token != null) {
-          emit(Authenticated(token));
+          emit(Authenticated(token, userName: name ?? ''));
         } else {
           emit(AuthFailure('Login failed'));
         }

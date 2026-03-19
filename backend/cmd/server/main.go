@@ -1,9 +1,10 @@
 package main
 
 import (
-	"context"
+	"bufio"
 	"database/sql"
-	"log"
+	"errors"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -11,9 +12,8 @@ import (
 	"github.com/Ayush330/symbio/backend/internal/auth"
 	"github.com/Ayush330/symbio/backend/internal/commitments"
 	"github.com/Ayush330/symbio/backend/internal/db"
-	"github.com/Ayush330/symbio/backend/internal/kafka"
+	"github.com/Ayush330/symbio/backend/internal/logger"
 	"github.com/Ayush330/symbio/backend/internal/notifications"
-	"github.com/Ayush330/symbio/backend/internal/outbox"
 	"github.com/Ayush330/symbio/backend/internal/ws"
 )
 
@@ -30,10 +30,17 @@ func (w *wsBroadcaster) BroadcastToUser(userID string, payload []byte) {
 }
 
 func main() {
+	// 0. Initialize Logger
+	isProd := os.Getenv("APP_ENV") == "production"
+	logger.Init(isProd)
+	defer logger.Log.Sync()
+
+	logger.Info("Initializing Sybmio Services", "env", os.Getenv("APP_ENV"))
+
 	// 1. Initialize DBs
 	postgresDB, err := db.NewPostgresDB()
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatal("Failed to initialize database", "error", err)
 	}
 	defer postgresDB.Close()
 
@@ -42,7 +49,7 @@ func main() {
 
 	redisClient, err := db.NewRedisClient()
 	if err != nil {
-		log.Fatalf("Failed to initialize redis: %v", err)
+		logger.Fatal("Failed to initialize redis", "error", err)
 	}
 	defer redisClient.Close()
 
@@ -54,7 +61,7 @@ func main() {
 	// 3. Initialize Notifications / FCM setup
 	fcmService, fcmErr := notifications.NewFCMService("firebase-adminsdk.json")
 	if fcmErr != nil {
-		log.Printf("Warning: FCM service not initialized: %v", fcmErr)
+		logger.Warn("FCM service not initialized", "error", fcmErr)
 	}
 
 	// 4. Initialize WebSocket setup first for Broadcaster
@@ -62,12 +69,8 @@ func main() {
 	go wsManager.Run()
 	broadcaster := &wsBroadcaster{m: wsManager}
 
-	// 6. Initialize Notifications / Twilio setup
-	twilioService, twilioErr := notifications.NewTwilioService()
-	if twilioErr != nil {
-		log.Printf("Warning: Twilio service not initialized: %v", twilioErr)
-	}
-	notificationsHandler := notifications.NewHandler(twilioService, authRepo)
+	// 6. Initialize Notifications Handler (FCM only now)
+	notificationsHandler := notifications.NewHandler(authRepo)
 
 	// 6.5 Setup Classifier
 	keywordClassifier := &commitments.KeywordClassifier{}
@@ -87,11 +90,7 @@ func main() {
 
 	wsHandler := ws.NewHandler(wsManager, commService)
 
-	// 7. Initialize Outbox Relay & Kafka
-	kafkaProducer := kafka.NewProducer()
-	defer kafkaProducer.Close()
-	outboxRelay := outbox.NewRelay(postgresDB, kafkaProducer, 5*time.Second)
-	go outboxRelay.Start(context.Background())
+	// 7. (Kafka & Outbox removed)
 
 	// 8. Setup Routing
 	mux := http.NewServeMux()
@@ -104,7 +103,7 @@ func main() {
 	mux.HandleFunc("/ws", wsHandler.ServeWS)
 
 	// Friends & Social
-	friendsHandler := auth.NewFriendsHandler(postgresDB, authService, fcmService, twilioService)
+	friendsHandler := auth.NewFriendsHandler(postgresDB, authService, fcmService, broadcaster)
 	mux.HandleFunc("/friends", friendsHandler.ListFriends)
 	mux.HandleFunc("/friends/requests", friendsHandler.ListFriendRequests)
 	mux.HandleFunc("/friends/request", friendsHandler.SendFriendRequest)
@@ -118,6 +117,7 @@ func main() {
 	mux.HandleFunc("/favour/create", commitmentsHandler.CreateFavour)
 	mux.HandleFunc("/favour/config", commitmentsHandler.GetFavourConfig)
 	mux.HandleFunc("/favour/classify", commitmentsHandler.ClassifyFavour)
+	mux.HandleFunc("/commitments/", commitmentsHandler.AcceptCommitment) // Handles /commitments/{id}/accept and /deny
 
 	// Stats & Graph
 	mux.HandleFunc("/relationship/", friendsHandler.GetRelationshipStats)
@@ -135,23 +135,31 @@ func main() {
 
 	// 9. Start Server
 	port := ":8080"
-	log.Printf("Starting server on port %s", port)
+	logger.Info("Starting server", "port", port)
 
-	handler := recoveryMiddleware(corsMiddleware(mux))
+	handler := recoveryMiddleware(loggingMiddleware(corsMiddleware(mux)))
 
 	if err := http.ListenAndServe(port, handler); err != nil {
-		log.Fatalf("Could not start server: %v\n", err)
+		logger.Fatal("Could not start server", "error", err)
 	}
 }
 
 func ensureSchema(db *sql.DB) {
-	log.Println("Checking database schema...")
+	logger.Info("Checking database schema")
 
 	// Ensure essential columns exist
 	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS category VARCHAR(20)`)
 	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS points INT DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS text TEXT`)
 	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS rating INT DEFAULT 0`)
+	
+	// New rich metadata columns
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS effort INT DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS time_taken INT DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS sacrifice INT DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS urgency INT DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS intensity FLOAT DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE commitments ADD COLUMN IF NOT EXISTS explanation TEXT`)
 
 	// Relax constraints to support pure text/points flow
 	_, _ = db.Exec(`ALTER TABLE commitments ALTER COLUMN entity_id DROP NOT NULL`)
@@ -159,19 +167,61 @@ func ensureSchema(db *sql.DB) {
 	// Ensure phone is a unique identifier
 	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL AND phone != ''`)
 
-	log.Println("Schema check complete.")
+	logger.Info("Schema check complete")
 }
 
 func recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("PANIC RECOVERED: %v", err)
+				logger.Error("PANIC RECOVERED", "error", err, "path", r.URL.Path)
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 			}
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		
+		// Create a custom response writer to capture status code
+		ww := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		
+		next.ServeHTTP(ww, r)
+		
+		logger.Info("Request handled",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.status,
+			"duration", time.Since(start).String(),
+			"remote_addr", r.RemoteAddr,
+		)
+	})
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Flush() {
+	if fl, ok := rw.ResponseWriter.(http.Flusher); ok {
+		fl.Flush()
+	}
+}
+
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, errors.New("webserver doesn't support hijacking")
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

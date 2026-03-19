@@ -10,6 +10,8 @@ class WebSocketClient {
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
   
+  String? _lastToken;
+  
   bool _isConnected = false;
   int _reconnectAttempts = 0;
   final int _maxReconnectDelay = 30; // Max delay in seconds
@@ -20,16 +22,25 @@ class WebSocketClient {
   WebSocketClient({required this.url});
 
   void connect(String token) {
+    if (_isConnected && _lastToken == token) {
+      debugPrint('WS: Already connected with same token, skipping redundant connect');
+      return;
+    }
+    
+    debugPrint('WS: Connecting to $url...');
+    disconnect(); // Clean up any existing connection/timers
+    
+    _lastToken = token;
     _reconnectTimer?.cancel();
     final socketUrl = Uri.parse('$url?token=$token');
     
     try {
       _channel = WebSocketChannel.connect(socketUrl);
-      _isConnected = true;
-      _reconnectAttempts = 0;
-
+      _isConnected = true; // Optimistically set, will be updated on messages
+      
       _subscription = _channel!.stream.listen(
         (message) {
+          _reconnectAttempts = 0;
           try {
             final data = jsonDecode(message as String);
             _messageController.add(data as Map<String, dynamic>);
@@ -37,9 +48,12 @@ class WebSocketClient {
             debugPrint('Error decoding WS message: $e');
           }
         },
-        onDone: _handleConnectionLost,
+        onDone: () {
+          debugPrint('WS: Connection closed by server');
+          _handleConnectionLost();
+        },
         onError: (error) {
-          debugPrint('WS error: $error');
+          debugPrint('WS: Connection error: $error');
           _handleConnectionLost();
         },
       );
@@ -61,18 +75,21 @@ class WebSocketClient {
   }
 
   void _handleConnectionLost() {
+    if (!_isConnected && _reconnectAttempts > 0 && _reconnectTimer?.isActive == true) return; 
+    
     _isConnected = false;
     _subscription?.cancel();
     _heartbeatTimer?.cancel();
     
     // Exponential backoff
     final delay = Duration(seconds: (_reconnectAttempts + 1).clamp(1, _maxReconnectDelay));
-    debugPrint('WS connection lost. Reconnecting in ${delay.inSeconds}s...');
+    debugPrint('WS connection lost. Reconnecting in ${delay.inSeconds}s... (Attempt ${_reconnectAttempts + 1})');
     
     _reconnectTimer = Timer(delay, () {
       _reconnectAttempts++;
-      // We need the token again here, usually fetched from SharedPreferences or passed via a provider
-      // For this implementation, we assume the caller will trigger connect() again or we cache the token.
+      if (_lastToken != null) {
+        connect(_lastToken!);
+      }
     });
   }
 

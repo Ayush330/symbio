@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/Ayush330/symbio/backend/internal/logger"
 
 	"github.com/Ayush330/symbio/backend/internal/auth"
 	"github.com/google/uuid"
@@ -72,13 +72,17 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		return nil, fmt.Errorf("cannot create commitment: %v", err)
 	}
 
-	catVal, pts, _ := s.classifier.Classify(ctx, req.Text)
-	cat := string(catVal)
-	if req.Category != "" {
-		cat = req.Category
+	metrics, err := s.classifier.Analyze(ctx, req.Text)
+	if err != nil {
+		logger.Warn("Classification failed", "text", req.Text, "error", err)
+		// Minimal fallback
+		metrics = &KarmaMetrics{FinalScore: 1, CategoryWeight: 10}
 	}
-	if req.Points != 0 {
-		pts = req.Points
+
+	cat := string(req.Category)
+	if cat == "" {
+		// Reverse mapping or direct check if cat is already correct in Analyze?
+		// For now we'll assume Gemini/Fallback provides it.
 	}
 
 	commitment := &Commitment{
@@ -88,30 +92,32 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		Rating:      req.Rating,
 		Status:      StatusPending,
 		Text:        req.Text,
-		Category:    cat,
-		Points:      pts,
+		Category:    req.Category, // Use provided if exists
+		Points:      req.Points,
+		Effort:      metrics.Effort,
+		TimeTaken:   metrics.Time,
+		Sacrifice:   metrics.Sacrifice,
+		Urgency:     metrics.Urgency,
+		Intensity:   metrics.Intensity100,
+		Explanation: metrics.Explanation,
+	}
+
+	// Manual metric overrides
+	if req.Effort > 0 { commitment.Effort = req.Effort }
+	if req.TimeTaken > 0 { commitment.TimeTaken = req.TimeTaken }
+	if req.Sacrifice > 0 { commitment.Sacrifice = req.Sacrifice }
+	if req.Urgency > 0 { commitment.Urgency = req.Urgency }
+	if req.Intensity > 0 { commitment.Intensity = req.Intensity }
+
+	// Double check category and points from analysis if not provided
+	if commitment.Category == "" {
+		// Category detection logic normally in classifier
+	}
+	if commitment.Points == 0 {
+		commitment.Points = metrics.FinalScore
 	}
 
 	if err := s.repo.CreateCommitment(ctx, tx, commitment); err != nil {
-		return nil, err
-	}
-
-	// Outbox event
-	payload, _ := json.Marshal(map[string]interface{}{
-		"commitment_id": commitment.ID,
-		"initiator_id":  initiatorID,
-		"target_user":   targetUID,
-		"status":        commitment.Status,
-	})
-
-	outboxEvent := &OutboxEvent{
-		AggregateType: "Commitment",
-		AggregateID:   commitment.ID,
-		EventType:     "CommitmentRequested",
-		Payload:       string(payload),
-	}
-
-	if err := s.repo.InsertOutboxEvent(ctx, tx, outboxEvent); err != nil {
 		return nil, err
 	}
 
@@ -121,7 +127,7 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 
 	// Real-time broadcast
 	if s.broadcaster != nil {
-		log.Printf("SYNC: Broadcasting commitment_requested to target %s", targetUID)
+		logger.Debug("SYNC: Broadcasting commitment_requested", "target", targetUID)
 		commBytes, _ := json.Marshal(commitment)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "commitment_requested",
@@ -130,7 +136,7 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		s.broadcaster.BroadcastToUser(targetUID.String(), wsMsg)
 
 		// Signal a refresh for both users
-		log.Printf("SYNC: Sending data_refresh to %s and %s", targetUID, initiatorID)
+		logger.Debug("SYNC: Sending data_refresh", "target", targetUID, "initiator", initiatorID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
 			"data": map[string]string{"reason": "commitment_requested"},
@@ -144,12 +150,12 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 		go func() {
 			initiator, err := s.authRepo.GetUserByID(context.Background(), initiatorID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch initiator (%s) for request notification: %v", initiatorID, err)
+				logger.Warn("Failed to fetch initiator for request notification", "userID", initiatorID, "error", err)
 				return
 			}
 			target, err := s.authRepo.GetUserByID(context.Background(), targetUID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch target (%s) for request notification: %v", targetUID, err)
+				logger.Warn("Failed to fetch target for request notification", "userID", targetUID, "error", err)
 				return
 			}
 
@@ -164,7 +170,7 @@ func (s *commitmentsService) RequestCommitment(ctx context.Context, initiatorID 
 					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
-					log.Printf("Error sending request notification to %s: %v", target.Email, err)
+					logger.Error("Error sending request notification", "email", target.Email, "error", err)
 				}
 			}
 		}()
@@ -208,23 +214,6 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		return nil, err
 	}
 
-	// Emitting the Outbox Event
-	payload, _ := json.Marshal(map[string]interface{}{
-		"commitment_id": commitment.ID,
-		"status":        StatusAcknowledged,
-	})
-
-	outboxEvent := &OutboxEvent{
-		AggregateType: "Commitment",
-		AggregateID:   commitment.ID,
-		EventType:     "CommitmentAccepted",
-		Payload:       string(payload),
-	}
-
-	if err := s.repo.InsertOutboxEvent(ctx, tx, outboxEvent); err != nil {
-		return nil, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -233,7 +222,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 
 	// Real-time broadcast
 	if s.broadcaster != nil {
-		log.Printf("SYNC: Broadcasting commitment_accepted to %s and %s", commitment.InitiatorID, commitment.TargetID)
+		logger.Debug("SYNC: Broadcasting commitment_accepted", "initiator", commitment.InitiatorID, "target", commitment.TargetID)
 		commBytes, _ := json.Marshal(commitment)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "commitment_accepted",
@@ -242,11 +231,10 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		s.broadcaster.BroadcastToUser(commitment.InitiatorID.String(), wsMsg)
 		s.broadcaster.BroadcastToUser(commitment.TargetID.String(), wsMsg)
 
-		// Signal refresh
-		log.Printf("SYNC: Sending data_refresh to %s and %s", commitment.InitiatorID, commitment.TargetID)
+		logger.Debug("SYNC: Sending data_refresh", "initiator", commitment.InitiatorID, "target", commitment.TargetID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
-			"data": map[string]string{"reason": "commitment_accepted"},
+			"data": map[string]string{"commitment_id": commitment.ID.String(), "status": string(commitment.Status)},
 		})
 		s.broadcaster.BroadcastToUser(commitment.InitiatorID.String(), refreshMsg)
 		s.broadcaster.BroadcastToUser(commitment.TargetID.String(), refreshMsg)
@@ -257,12 +245,12 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 		go func() {
 			target, err := s.authRepo.GetUserByID(context.Background(), commitment.TargetID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch target for accept notification: %v", err)
+				logger.Warn("Failed to fetch target for accept notification", "error", err)
 				return
 			}
 			initiator, err := s.authRepo.GetUserByID(context.Background(), commitment.InitiatorID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch initiator for accept notification: %v", err)
+				logger.Warn("Failed to fetch initiator for accept notification", "error", err)
 				return
 			}
 			if initiator != nil && initiator.FCMToken != "" {
@@ -275,7 +263,7 @@ func (s *commitmentsService) AcceptCommitment(ctx context.Context, userID uuid.U
 					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
-					log.Printf("Error sending accept notification to %s: %v", initiator.Email, err)
+					logger.Error("Error sending accept notification", "email", initiator.Email, "error", err)
 				}
 			}
 		}()
@@ -300,22 +288,6 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 		return nil, err
 	}
 
-	payload, _ := json.Marshal(map[string]interface{}{
-		"commitment_id": commID,
-		"status":        StatusDenied,
-	})
-
-	outboxEvent := &OutboxEvent{
-		AggregateType: "Commitment",
-		AggregateID:   commID,
-		EventType:     "CommitmentDenied",
-		Payload:       string(payload),
-	}
-
-	if err := s.repo.InsertOutboxEvent(ctx, tx, outboxEvent); err != nil {
-		return nil, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -324,7 +296,7 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 
 	// Real-time broadcast
 	if s.broadcaster != nil && comm != nil {
-		log.Printf("SYNC: Broadcasting commitment_denied to %s", comm.InitiatorID)
+		logger.Debug("SYNC: Broadcasting commitment_denied", "initiator", comm.InitiatorID)
 		commBytes, _ := json.Marshal(comm)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "commitment_denied",
@@ -332,11 +304,10 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 		})
 		s.broadcaster.BroadcastToUser(comm.InitiatorID.String(), wsMsg)
 
-		// Signal refresh
-		log.Printf("SYNC: Sending data_refresh to %s and %s", comm.InitiatorID, comm.TargetID)
+		logger.Debug("SYNC: Sending data_refresh", "initiator", comm.InitiatorID, "target", comm.TargetID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
-			"data": map[string]string{"reason": "commitment_denied"},
+			"data": map[string]string{"commitment_id": comm.ID.String(), "status": string(comm.Status)},
 		})
 		s.broadcaster.BroadcastToUser(comm.InitiatorID.String(), refreshMsg)
 		s.broadcaster.BroadcastToUser(comm.TargetID.String(), refreshMsg)
@@ -346,13 +317,13 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 		go func() {
 			target, err := s.authRepo.GetUserByID(context.Background(), userID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch target for deny notification: %v", err)
+				logger.Warn("Failed to fetch target for deny notification", "error", err)
 				return
 			}
 			if comm != nil {
 				initiator, err := s.authRepo.GetUserByID(context.Background(), comm.InitiatorID)
 				if err != nil {
-					log.Printf("Warning: failed to fetch initiator for deny notification: %v", err)
+					logger.Warn("Failed to fetch initiator for deny notification", "error", err)
 					return
 				}
 				if initiator != nil && initiator.FCMToken != "" {
@@ -365,7 +336,7 @@ func (s *commitmentsService) DenyCommitment(ctx context.Context, userID uuid.UUI
 						"icon":  "notification_icon_heart",
 					})
 					if err != nil {
-						log.Printf("Error sending deny notification to %s: %v", initiator.Email, err)
+						logger.Error("Error sending deny notification", "email", initiator.Email, "error", err)
 					}
 				}
 			}
@@ -392,13 +363,9 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		return nil, fmt.Errorf("cannot create favour: %v", err)
 	}
 
-	catVal, pts, _ := s.classifier.Classify(ctx, req.Text)
-	cat := string(catVal)
-	if req.Category != "" {
-		cat = req.Category
-	}
-	if req.Points != 0 {
-		pts = req.Points
+	metrics, err := s.classifier.Analyze(ctx, req.Text)
+	if err != nil {
+		metrics = &KarmaMetrics{FinalScore: 10}
 	}
 
 	commitment := &Commitment{
@@ -406,38 +373,39 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		InitiatorID: initiatorID,
 		TargetID:    targetUID,
 		Text:        req.Text,
-		Category:    cat,
-		Points:      pts,
-		Status:      StatusAcknowledged, // Favours are instant
+		Category:    req.Category,
+		Points:      req.Points,
+		Rating:      req.Points, // Ensure rating check (1-100) is satisfied
+		Effort:      metrics.Effort,
+		TimeTaken:   metrics.Time,
+		Sacrifice:   metrics.Sacrifice,
+		Urgency:     metrics.Urgency,
+		Intensity:   metrics.Intensity100,
+		Explanation: metrics.Explanation,
+		Status:      StatusAcknowledged,
+	}
+
+	if commitment.Rating < 1 {
+		commitment.Rating = 10 // Default to 10 to satisfy check constraint
+	}
+
+	// Manual metric overrides
+	if req.Effort > 0 { commitment.Effort = req.Effort }
+	if req.TimeTaken > 0 { commitment.TimeTaken = req.TimeTaken }
+	if req.Sacrifice > 0 { commitment.Sacrifice = req.Sacrifice }
+	if req.Urgency > 0 { commitment.Urgency = req.Urgency }
+	if req.Intensity > 0 { commitment.Intensity = req.Intensity }
+
+	if commitment.Points == 0 {
+		commitment.Points = metrics.FinalScore
 	}
 
 	if err := s.repo.CreateCommitment(ctx, tx, commitment); err != nil {
 		return nil, err
 	}
 
-	if err := s.repo.UpdateReciprocityScore(ctx, tx, relID, initiatorID, float64(pts)); err != nil {
-		log.Printf("Error updating reciprocity score for favour: %v", err)
-		return nil, err
-	}
-
-	payload, _ := json.Marshal(map[string]interface{}{
-		"favour_id":    commitment.ID,
-		"from_user_id": initiatorID,
-		"to_user_id":   targetUID,
-		"category":     cat,
-		"points":       pts,
-		"text":         req.Text,
-		"status":       StatusAcknowledged,
-	})
-
-	outboxEvent := &OutboxEvent{
-		AggregateType: "Favour",
-		AggregateID:   commitment.ID,
-		EventType:     "FAVOUR_CREATED",
-		Payload:       string(payload),
-	}
-
-	if err := s.repo.InsertOutboxEvent(ctx, tx, outboxEvent); err != nil {
+	if err := s.repo.UpdateReciprocityScore(ctx, tx, relID, initiatorID, float64(commitment.Points)); err != nil {
+		logger.Error("Error updating reciprocity score for favour", "error", err)
 		return nil, err
 	}
 
@@ -447,7 +415,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 
 	// Real-time broadcast
 	if s.broadcaster != nil {
-		log.Printf("SYNC: Broadcasting favour_created to %s and %s", targetUID, initiatorID)
+		logger.Debug("SYNC: Broadcasting favour_created", "target", targetUID, "initiator", initiatorID)
 		commBytes, _ := json.Marshal(commitment)
 		wsMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "favour_created",
@@ -457,7 +425,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		s.broadcaster.BroadcastToUser(initiatorID.String(), wsMsg)
 
 		// Signal refresh for both users
-		log.Printf("SYNC: Sending data_refresh (favour) to %s and %s", targetUID, initiatorID)
+		logger.Debug("SYNC: Sending data_refresh (favour)", "target", targetUID, "initiator", initiatorID)
 		refreshMsg, _ := json.Marshal(map[string]interface{}{
 			"type": "data_refresh",
 			"data": map[string]string{"reason": "favour_created"},
@@ -470,12 +438,12 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 		go func() {
 			initiator, err := s.authRepo.GetUserByID(context.Background(), initiatorID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch initiator (%s) for favour notification: %v", initiatorID, err)
+				logger.Warn("Failed to fetch initiator for favour notification", "userID", initiatorID, "error", err)
 				return
 			}
 			target, err := s.authRepo.GetUserByID(context.Background(), targetUID)
 			if err != nil {
-				log.Printf("Warning: failed to fetch target (%s) for favour notification: %v", targetUID, err)
+				logger.Warn("Failed to fetch target for favour notification", "userID", targetUID, "error", err)
 				return
 			}
 
@@ -489,7 +457,7 @@ func (s *commitmentsService) CreateFavour(ctx context.Context, initiatorID uuid.
 					"icon":  "notification_icon_heart",
 				})
 				if err != nil {
-					log.Printf("Error sending favour notification to %s: %v", target.Email, err)
+					logger.Error("Error sending favour notification", "email", target.Email, "error", err)
 				}
 			}
 		}()

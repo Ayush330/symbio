@@ -53,6 +53,12 @@ CREATE TABLE commitments (
     points INT,
     rating INT CHECK (rating >= 1 AND rating <= 100),
     status VARCHAR(20) DEFAULT 'PENDING', -- PENDING, ACKNOWLEDGED, FLAKED
+    effort INT,
+    time_taken INT,
+    sacrifice INT,
+    urgency INT,
+    intensity DECIMAL,
+    explanation TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

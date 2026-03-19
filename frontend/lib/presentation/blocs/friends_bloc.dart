@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import '../../core/websocket/websocket_client.dart';
 import '../../data/repositories/friends_repository.dart';
+import 'dart:async';
 
 // Events
 abstract class FriendsEvent extends Equatable {
@@ -83,10 +85,30 @@ class FriendActivityLoaded extends FriendsState {
 // BLoC
 class FriendsBloc extends Bloc<FriendsEvent, FriendsState> {
   final FriendsRepository friendsRepository;
+  final WebSocketClient webSocketClient;
+  StreamSubscription? _wsSubscription;
 
-  FriendsBloc({required this.friendsRepository}) : super(FriendsInitial()) {
+  FriendsBloc({
+    required this.friendsRepository,
+    required this.webSocketClient,
+  }) : super(FriendsInitial()) {
+    // Listen for real-time synchronization messages
+    _wsSubscription = webSocketClient.messages.listen((message) {
+      final type = message['type'];
+      if (type == 'friend_request_received' || 
+          type == 'friend_request_accepted' || 
+          type == 'favour_created' ||
+          type == 'commitment_accepted' ||
+          type == 'commitment_requested' ||
+          type == 'data_refresh') {
+        add(LoadFriends());
+      }
+    });
+
     on<LoadFriends>((event, emit) async {
-      emit(FriendsLoading());
+      if (state is! FriendsLoaded) {
+        emit(FriendsLoading());
+      }
       try {
         final results = await Future.wait([
           friendsRepository.getFriends(),
@@ -147,5 +169,11 @@ class FriendsBloc extends Bloc<FriendsEvent, FriendsState> {
         emit(FriendsError(e.toString()));
       }
     });
+  }
+
+  @override
+  Future<void> close() {
+    _wsSubscription?.cancel();
+    return super.close();
   }
 }

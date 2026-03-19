@@ -4,15 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
+	"github.com/Ayush330/symbio/backend/internal/logger"
+	"github.com/Ayush330/symbio/backend/internal/transport"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/Ayush330/symbio/backend/internal/transport"
 	"github.com/google/uuid"
 )
 
@@ -21,21 +21,21 @@ type PushSender interface {
 	SendPushNotification(ctx context.Context, token, title, body string, data map[string]string) error
 }
 
-// SmsSender allows sending SMS invitations
-type SmsSender interface {
-	SendInvite(toNumber string, inviterName string, formal bool) error
+// Broadcaster allows real-time messaging
+type Broadcaster interface {
+	BroadcastToUser(userID string, payload []byte)
 }
 
 // FriendsHandler handles friend-related HTTP endpoints
 type FriendsHandler struct {
-	db         *sql.DB
-	service    Service
-	pushSender PushSender
-	smsSender  SmsSender
+	db          *sql.DB
+	service     Service
+	pushSender  PushSender
+	broadcaster Broadcaster
 }
 
-func NewFriendsHandler(db *sql.DB, s Service, push PushSender, sms SmsSender) *FriendsHandler {
-	return &FriendsHandler{db: db, service: s, pushSender: push, smsSender: sms}
+func NewFriendsHandler(db *sql.DB, s Service, push PushSender, broadcaster Broadcaster) *FriendsHandler {
+	return &FriendsHandler{db: db, service: s, pushSender: push, broadcaster: broadcaster}
 }
 
 type FriendInfo struct {
@@ -50,14 +50,15 @@ type FriendInfo struct {
 
 func calculateKarmaScore(favours, points int) float64 {
 	// Formula: S(x, y) = 1 + 99 * (1 - e^-(0.1*x + 0.01*y))
-	// We use the surplus (net contribution) for the score.
-	if favours < 0 { favours = 0 }
-	if points < 0 { points = 0 }
-	
-	k_x := 0.1 // Increased sensitivity for favours
+	k_x := 0.1 
 	k_y := 0.01
 	val := k_x*float64(favours) + k_y*float64(points)
-	score := 1.0 + 99.0*(1.0-math.Exp(-val))
+	
+	if val <= 0 {
+		return 1.0 // Base health
+	}
+	
+	score := 1.0 + 99.0 * (1.0 - math.Exp(-val))
 	return score
 }
 
@@ -95,7 +96,7 @@ func (h *FriendsHandler) ListFriends(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.QueryContext(r.Context(), query, userUUID)
 	if err != nil {
-		log.Printf("DB Query Error (ListFriends): %v", err)
+		logger.Error("DB Query Error (ListFriends)", "error", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -150,7 +151,7 @@ func (h *FriendsHandler) ListFriendRequests(w http.ResponseWriter, r *http.Reque
 
 	rows, err := h.db.QueryContext(r.Context(), query, userUUID)
 	if err != nil {
-		log.Printf("DB Query Error (ListFriendRequests): %v", err)
+		logger.Error("DB Query Error (ListFriendRequests)", "error", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -204,7 +205,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	// Check if relationship already exists
 	var existingStatus string
 	err = h.db.QueryRowContext(r.Context(), `
-		SELECT status FROM user_relationships 
+		SELECT status FROM user_relationships
 		WHERE (user_a_id = $1 AND user_b_id = $2)
 	`, uid1, uid2).Scan(&existingStatus)
 
@@ -222,7 +223,7 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	_, err = h.db.ExecContext(r.Context(), `
 		INSERT INTO user_relationships (user_a_id, user_b_id, initiator_id, status)
 		VALUES ($1, $2, $3, 'PENDING')
-		ON CONFLICT (user_a_id, user_b_id) DO UPDATE 
+		ON CONFLICT (user_a_id, user_b_id) DO UPDATE
 		SET status = 'PENDING', initiator_id = EXCLUDED.initiator_id
 	`, uid1, uid2, initiatorID)
 
@@ -248,6 +249,24 @@ func (h *FriendsHandler) SendFriendRequest(w http.ResponseWriter, r *http.Reques
 	}
 
 	transport.WriteJSON(w, http.StatusCreated, map[string]bool{"success": true})
+
+	// Real-time broadcast
+	if h.broadcaster != nil {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"type": "friend_request_received",
+			"data": map[string]string{
+				"initiator_id": initiatorID.String(),
+			},
+		})
+		h.broadcaster.BroadcastToUser(req.TargetID, payload)
+
+		// Signal refresh for target
+		refresh, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "friend_request"},
+		})
+		h.broadcaster.BroadcastToUser(req.TargetID, refresh)
+	}
 }
 
 // AcceptFriendRequest accepts a pending friend request
@@ -278,7 +297,7 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	res, err := h.db.ExecContext(r.Context(), `
-		UPDATE user_relationships 
+		UPDATE user_relationships
 		SET status = 'ACCEPTED'
 		WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2) AND initiator_id != $2 AND status = 'PENDING'
 	`, relUUID, userUUID)
@@ -315,6 +334,29 @@ func (h *FriendsHandler) AcceptFriendRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
+
+	// Real-time broadcast to the initiator
+	if h.broadcaster != nil {
+		var initiatorID string
+		err = h.db.QueryRowContext(r.Context(), "SELECT initiator_id FROM user_relationships WHERE id = $1", relUUID).Scan(&initiatorID)
+		if err == nil {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"type": "friend_request_accepted",
+				"data": map[string]string{
+					"accepter_id": userUUID.String(),
+				},
+			})
+			h.broadcaster.BroadcastToUser(initiatorID, payload)
+
+			// Signal refresh for both
+			refresh, _ := json.Marshal(map[string]interface{}{
+				"type": "data_refresh",
+				"data": map[string]string{"reason": "friend_accepted"},
+			})
+			h.broadcaster.BroadcastToUser(initiatorID, refresh)
+			h.broadcaster.BroadcastToUser(userUUID.String(), refresh)
+		}
+	}
 }
 
 // RejectFriendRequest rejects a pending friend request (deletes it)
@@ -345,7 +387,7 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	res, err := h.db.ExecContext(r.Context(), `
-		DELETE FROM user_relationships 
+		DELETE FROM user_relationships
 		WHERE id = $1 AND (user_a_id = $2 OR user_b_id = $2) AND status = 'PENDING'
 	`, relUUID, userUUID)
 
@@ -361,6 +403,15 @@ func (h *FriendsHandler) RejectFriendRequest(w http.ResponseWriter, r *http.Requ
 	}
 
 	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
+
+	// Real-time broadcast (refresh only for rejection/deletion)
+	if h.broadcaster != nil {
+		refresh, _ := json.Marshal(map[string]interface{}{
+			"type": "data_refresh",
+			"data": map[string]string{"reason": "friend_rejected"},
+		})
+		h.broadcaster.BroadcastToUser(userUUID.String(), refresh)
+	}
 }
 
 // LookupUser checks if a user exists by email or phone
@@ -399,7 +450,7 @@ func (h *FriendsHandler) LookupUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("DB Query Error (LookupUser): %v", err)
+		logger.Error("DB Query Error (LookupUser)", "error", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -440,22 +491,15 @@ func (h *FriendsHandler) SendInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// For now, we just log the invite
-	log.Printf("INVITE: User %s invited %s (Email: %s, Phone: %s)", userUUID, req.Name, req.Email, req.Phone)
+	logger.Info("INVITE sent",
+		"inviter", userUUID,
+		"target_name", req.Name,
+		"email", req.Email,
+		"phone", req.Phone,
+	)
 
-	// If we have an SMS sender and a phone number, send actual invite
-	if h.smsSender != nil && req.Phone != "" {
-		// Get inviter name
-		inviterName := "A friend"
-		inviter, err := h.service.(*authService).repo.GetUserByID(r.Context(), userUUID)
-		if err == nil && inviter != nil {
-			inviterName = inviter.Name
-		}
-
-		err = h.smsSender.SendInvite(req.Phone, inviterName, false)
-		if err != nil {
-			log.Printf("ERROR: Failed to send SMS invite to %s: %v", req.Phone, err)
-		}
-	}
+	// Invitations are now just logged in the backend.
+	// Actual SMS should be handled by the frontend via device contacts.
 
 	transport.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
@@ -505,7 +549,7 @@ func (h *FriendsHandler) GetFriendActivity(w http.ResponseWriter, r *http.Reques
 	// Find relationship
 	var relID uuid.UUID
 	err = h.db.QueryRowContext(r.Context(), `
-		SELECT id FROM user_relationships 
+		SELECT id FROM user_relationships
 		WHERE (user_a_id = $1 AND user_b_id = $2) OR (user_a_id = $2 AND user_b_id = $1)
 	`, userUUID, friendUUID).Scan(&relID)
 
@@ -574,7 +618,7 @@ func (h *FriendsHandler) GetGlobalActivity(w http.ResponseWriter, r *http.Reques
 
 	rows, err := h.db.QueryContext(r.Context(), query, userUUID, limit, offset)
 	if err != nil {
-		log.Printf("DB Query Error (GetGlobalActivity): %v", err)
+		logger.Error("DB Query Error (GetGlobalActivity)", "error", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -587,7 +631,7 @@ func (h *FriendsHandler) GetGlobalActivity(w http.ResponseWriter, r *http.Reques
 		var a ActivityItem
 		var createdAt time.Time
 		if err := rows.Scan(&a.ID, &a.InitiatorID, &a.TargetID, &a.Text, &a.Category, &a.Points, &a.Rating, &a.Status, &createdAt, &a.InitiatorName); err != nil {
-			log.Printf("Scan error: %v", err)
+			logger.Error("Scan error (GetGlobalActivity)", "error", err)
 			continue
 		}
 		a.CreatedAt = createdAt.Format(time.RFC3339)
@@ -661,7 +705,7 @@ func (h *FriendsHandler) GetRelationshipStats(w http.ResponseWriter, r *http.Req
 	`
 	err = h.db.QueryRowContext(r.Context(), query, userUUID, friendID).Scan(&score, &userA, &totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
-		log.Printf("DB Query Error (GetRelationshipStats): %v", err)
+		logger.Error("DB Query Error (GetRelationshipStats)", "error", err)
 		transport.SendError(w, http.StatusNotFound, "Relationship not found")
 		return
 	}
@@ -702,11 +746,24 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	var name string
+	// Fetch Name separately to ensure it works even if there are 0 commitments
+	err = h.db.QueryRowContext(r.Context(), "SELECT name FROM users WHERE id = $1", userUUID).Scan(&name)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			transport.SendError(w, http.StatusUnauthorized, "Session invalid: user not found")
+			return
+		}
+		logger.Error("DB Query Error (GetProfileStats - Name)", "error", err)
+		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
 	var totalGiven, totalReceived int
 	var pointsGiven, pointsReceived int
 
 	query := `
-		SELECT 
+		SELECT
 			COUNT(*) FILTER (WHERE initiator_id = $1) as given,
 			COUNT(*) FILTER (WHERE target_id = $1) as received,
 			COALESCE(SUM(points) FILTER (WHERE initiator_id = $1), 0) as pts_given,
@@ -716,19 +773,26 @@ func (h *FriendsHandler) GetProfileStats(w http.ResponseWriter, r *http.Request)
 	`
 	err = h.db.QueryRowContext(r.Context(), query, userUUID).Scan(&totalGiven, &totalReceived, &pointsGiven, &pointsReceived)
 	if err != nil {
-		log.Printf("DB Query Error (GetProfileStats): %v", err)
+		logger.Error("DB Query Error (GetProfileStats)", "error", err)
 		transport.SendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
+	netPoints := pointsGiven - pointsReceived
+	reciprocityScore := 50.0 + float64(netPoints)
+	if reciprocityScore < 0 { reciprocityScore = 0 }
+	if reciprocityScore > 100 { reciprocityScore = 100 }
+
 	transport.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"karma_score":            calculateKarmaScore(totalGiven - totalReceived, pointsGiven - pointsReceived),
+		"name":                   name,
+		"karma_score":            calculateKarmaScore(totalGiven-totalReceived, netPoints),
+		"reciprocity_score":      reciprocityScore,
 		"total_favours_given":    totalGiven,
 		"total_favours_received": totalReceived,
 		"total_points_given":     pointsGiven,
 		"total_points_received":  pointsReceived,
 		"net_favours":            totalGiven - totalReceived,
-		"net_points":             pointsGiven - pointsReceived,
+		"net_points":             netPoints,
 	})
 }
 
@@ -750,18 +814,16 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 		WITH friend_points AS (
 			SELECT 
 				CASE WHEN ur.user_a_id = $1 THEN ur.user_b_id ELSE ur.user_a_id END as friend_id,
-				(COALESCE(SUM(c.points) FILTER (WHERE c.initiator_id = $1 AND c.status = 'ACKNOWLEDGED'), 0) - 
-				 COALESCE(SUM(c.points) FILTER (WHERE c.target_id = $1 AND c.status = 'ACKNOWLEDGED'), 0)) as points
+				COALESCE(SUM(c.points) FILTER (WHERE c.status = 'ACKNOWLEDGED'), 0) as points
 			FROM user_relationships ur
 			JOIN commitments c ON c.rel_id = ur.id
 			WHERE (ur.user_a_id = $1 OR ur.user_b_id = $1) AND ur.status = 'ACCEPTED'
 			GROUP BY friend_id
-			HAVING (COALESCE(SUM(c.points) FILTER (WHERE c.initiator_id = $1 AND c.status = 'ACKNOWLEDGED'), 0) - 
-				 COALESCE(SUM(c.points) FILTER (WHERE c.target_id = $1 AND c.status = 'ACKNOWLEDGED'), 0)) > 0
+			HAVING COALESCE(SUM(c.points) FILTER (WHERE c.status = 'ACKNOWLEDGED'), 0) != 0
 			ORDER BY points DESC
 			LIMIT 5
 		)
-		SELECT u.name, fp.total_points
+		SELECT u.name, fp.points
 		FROM friend_points fp
 		JOIN users u ON u.id = fp.friend_id
 	`
@@ -781,6 +843,8 @@ func (h *FriendsHandler) GetActivityGraph(w http.ResponseWriter, r *http.Request
 		}
 		results = append(results, map[string]interface{}{"name": name, "points": points})
 	}
+
+	logger.Info("GetActivityGraph results", "count", len(results), "userID", userUUID)
 
 	transport.WriteJSON(w, http.StatusOK, results)
 }
