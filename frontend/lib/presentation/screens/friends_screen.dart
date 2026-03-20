@@ -71,24 +71,44 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               ),
             ),
           ),
-          BlocBuilder<FriendsBloc, FriendsState>(
-            builder: (context, state) {
-              if (state is FriendsLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state is FriendsEmpty || state is FriendsInitial) {
+          Positioned.fill(
+            child: BlocBuilder<FriendsBloc, FriendsState>(
+              builder: (context, state) {
+                if (state is FriendsLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is FriendsEmpty || state is FriendsInitial) {
+                  return _buildEmptyState();
+                }
+                if (state is FriendsLoaded) {
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      context.read<FriendsBloc>().add(LoadFriends());
+                    },
+                    backgroundColor: KizunaTheme.surfaceGlass,
+                    color: KizunaTheme.primaryBlue,
+                    child: _buildContent(state.friends, state.requests),
+                  );
+                }
+                if (state is FriendsError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                        const SizedBox(height: 16),
+                        Text('Something went wrong', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                        TextButton(
+                          onPressed: () => context.read<FriendsBloc>().add(LoadFriends()),
+                          child: const Text('RETRY'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
                 return _buildEmptyState();
-              }
-              if (state is FriendsLoaded) {
-                return _buildContent(state.friends, state.requests);
-              }
-              if (state is FriendsError) {
-                return Center(
-                  child: Text('Something went wrong', style: TextStyle(color: Colors.white38)),
-                );
-              }
-              return _buildEmptyState();
-            },
+              },
+            ),
           ),
         ],
       ),
@@ -207,6 +227,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   Widget _buildRequestItem(dynamic req) {
+    if (req is! Map) return const SizedBox.shrink();
+    final name = req['name']?.toString() ?? 'Unknown';
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: GlassContainer(
@@ -223,7 +246,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               ),
               child: Center(
                 child: Text(
-                  (req['name'] ?? '?')[0].toUpperCase(),
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
@@ -238,7 +261,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    req['name'] ?? 'Unknown',
+                    name,
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
@@ -281,6 +304,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
   }
 
   Widget _buildFriendItem(dynamic friend) {
+    if (friend is! Map) return const SizedBox.shrink();
     final karma = (friend['karma_score'] as num?)?.toDouble() ?? 1.0;
     final healthColor = KizunaTheme.getKarmaColor(karma);
 
@@ -291,9 +315,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
           context,
           MaterialPageRoute(
             builder: (_) => FriendDetailScreen(
-              friendId: friend['id'],
-              friendName: friend['name'] ?? 'Unknown',
-              friendEmail: friend['email'] ?? '',
+              friendId: friend['id']?.toString() ?? '',
+              friendName: friend['name']?.toString() ?? 'Unknown',
+              friendEmail: friend['email']?.toString() ?? '',
               health: karma,
             ),
           ),

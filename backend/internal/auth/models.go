@@ -12,7 +12,6 @@ type User struct {
 	PasswdHash string    `json:"-"`
 	Name       string    `json:"name"`
 	Phone      string    `json:"phone"`
-	Gender     string    `json:"gender"`
 	FCMToken   string    `json:"fcm_token,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
@@ -22,7 +21,6 @@ type SignupRequest struct {
 	Password string `json:"password"`
 	Name     string `json:"name"`
 	Phone    string `json:"phone"`
-	Gender   string `json:"gender"`
 }
 
 type LoginRequest struct {

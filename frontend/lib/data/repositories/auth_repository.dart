@@ -31,14 +31,13 @@ class AuthRepository {
     }
   }
 
-  Future<void> signup(String email, String password, String name, {String phone = '', String gender = ''}) async {
+  Future<void> signup(String email, String password, String name, {String phone = ''}) async {
     try {
       await dioClient.post('/signup', data: {
         'email': email,
         'password': password,
         'name': name,
         'phone': phone,
-        'gender': gender,
       });
     } catch (e) {
       rethrow;

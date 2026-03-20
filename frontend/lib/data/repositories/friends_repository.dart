@@ -8,7 +8,11 @@ class FriendsRepository {
 
   Future<List<dynamic>> getFriends() async {
     final response = await dioClient.get('/friends');
-    return response.data as List<dynamic>;
+    var data = response.data;
+    if (data is String) {
+      data = jsonDecode(data);
+    }
+    return data as List<dynamic>;
   }
 
   Future<List<dynamic>> getFriendActivity(String friendId) async {
@@ -60,7 +64,11 @@ class FriendsRepository {
 
   Future<List<dynamic>> getFriendRequests() async {
     final response = await dioClient.get('/friends/requests');
-    return response.data as List<dynamic>;
+    var data = response.data;
+    if (data is String) {
+      data = jsonDecode(data);
+    }
+    return data as List<dynamic>;
   }
 
   Future<void> sendFriendRequest(String targetId) async {

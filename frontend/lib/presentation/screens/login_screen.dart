@@ -20,9 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLogin = true;
-  String? _selectedGender;
-
-  final List<String> _genderOptions = ['Male', 'Female', 'Other'];
+  bool _isLogin = true;
 
   String _cleanPhoneNumber(String phone) {
     final trimmed = phone.trim();
@@ -174,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             keyboardType: TextInputType.phone,
                             onChanged: (val) {
-                              if (val.isNotEmpty) {
+                              if (_isLogin && val.isNotEmpty) {
                                 setState(() => _emailController.clear());
                               }
                             },
@@ -187,47 +185,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             label: const Text('PICK FROM CONTACTS', style: TextStyle(color: KizunaTheme.accentCyan, fontSize: 11)),
                           ),
                           const SizedBox(height: 16),
-                          // Gender Selection
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(left: 4, bottom: 8),
-                                child: Text('Gender', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                              ),
-                              Row(
-                                children: _genderOptions
-                                    .map((gender) => Expanded(
-                                          child: GestureDetector(
-                                            onTap: () => setState(() => _selectedGender = gender),
-                                            child: Container(
-                                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                                              padding: const EdgeInsets.symmetric(vertical: 10),
-                                              decoration: BoxDecoration(
-                                                color: _selectedGender == gender ? KizunaTheme.primaryBlue.withOpacity(0.2) : Colors.white.withOpacity(0.05),
-                                                borderRadius: BorderRadius.circular(10),
-                                                border: Border.all(
-                                                  color: _selectedGender == gender ? KizunaTheme.primaryBlue.withOpacity(0.5) : Colors.transparent,
-                                                ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  gender,
-                                                  style: TextStyle(
-                                                    color: _selectedGender == gender ? KizunaTheme.primaryBlue : Colors.white70,
-                                                    fontSize: 12,
-                                                    fontWeight: _selectedGender == gender ? FontWeight.bold : FontWeight.normal,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ))
-                                    .toList(),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
                         ],
                         TextField(
                           controller: _emailController,
@@ -237,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           keyboardType: TextInputType.emailAddress,
                           onChanged: (val) {
-                            if (val.isNotEmpty) {
+                            if (_isLogin && val.isNotEmpty) {
                               setState(() => _phoneController.clear());
                             }
                           },
@@ -316,8 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     if (_nameController.text.isEmpty ||
                                         _emailController.text.isEmpty ||
                                         _passwordController.text.isEmpty ||
-                                        _phoneController.text.isEmpty ||
-                                        _selectedGender == null) {
+                                        _phoneController.text.isEmpty) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(content: Text('All fields are mandatory'), backgroundColor: Colors.orangeAccent),
                                       );
@@ -329,7 +285,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                             _passwordController.text,
                                             _nameController.text.trim(),
                                             phone: _phoneController.text.trim(),
-                                            gender: _selectedGender!,
                                           ),
                                         );
                                   }

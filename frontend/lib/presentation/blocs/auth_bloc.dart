@@ -21,10 +21,9 @@ class SignupRequested extends AuthEvent {
   final String password;
   final String name;
   final String phone;
-  final String gender;
-  SignupRequested(this.email, this.password, this.name, {this.phone = '', this.gender = ''});
+  SignupRequested(this.email, this.password, this.name, {this.phone = ''});
   @override
-  List<Object?> get props => [email, password, name, phone, gender];
+  List<Object?> get props => [email, password, name, phone];
 }
 
 class LogoutRequested extends AuthEvent {}
@@ -97,7 +96,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SignupRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        await authRepository.signup(event.email, event.password, event.name, phone: event.phone, gender: event.gender);
+        await authRepository.signup(event.email, event.password, event.name, phone: event.phone);
         add(LoginRequested(event.email, event.password));
       } catch (e) {
         emit(AuthFailure(e.toString()));

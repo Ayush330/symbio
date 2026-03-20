@@ -31,12 +31,12 @@ func NewRepository(db *sql.DB) Repository {
 
 func (r *postgresRepository) CreateUser(ctx context.Context, u *User) error {
 	query := `
-		INSERT INTO users (email, passwd_hash, name, phone, gender)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO users (email, passwd_hash, name, phone)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at
 	`
 	err := r.db.QueryRowContext(
-		ctx, query, u.Email, u.PasswdHash, u.Name, u.Phone, u.Gender,
+		ctx, query, u.Email, u.PasswdHash, u.Name, u.Phone,
 	).Scan(&u.ID, &u.CreatedAt)
 
 	if err != nil {
@@ -50,14 +50,14 @@ func (r *postgresRepository) CreateUser(ctx context.Context, u *User) error {
 
 func (r *postgresRepository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, passwd_hash, name, phone, gender, created_at, fcm_token
+		SELECT id, email, passwd_hash, name, phone, created_at, fcm_token
 		FROM users
 		WHERE email = $1
 	`
 	u := &User{}
-	var phone, gender, fcm sql.NullString
+	var phone, fcm sql.NullString
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&u.ID, &u.Email, &u.PasswdHash, &u.Name, &phone, &gender, &u.CreatedAt, &fcm,
+		&u.ID, &u.Email, &u.PasswdHash, &u.Name, &phone, &u.CreatedAt, &fcm,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -67,9 +67,6 @@ func (r *postgresRepository) GetUserByEmail(ctx context.Context, email string) (
 	}
 	if phone.Valid {
 		u.Phone = phone.String
-	}
-	if gender.Valid {
-		u.Gender = gender.String
 	}
 	if fcm.Valid {
 		u.FCMToken = fcm.String
@@ -79,14 +76,14 @@ func (r *postgresRepository) GetUserByEmail(ctx context.Context, email string) (
 
 func (r *postgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `
-		SELECT id, email, passwd_hash, name, phone, gender, created_at, fcm_token
+		SELECT id, email, passwd_hash, name, phone, created_at, fcm_token
 		FROM users
 		WHERE id = $1
 	`
 	u := &User{}
-	var phone, gender, fcm sql.NullString
+	var phone, fcm sql.NullString
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&u.ID, &u.Email, &u.PasswdHash, &u.Name, &phone, &gender, &u.CreatedAt, &fcm,
+		&u.ID, &u.Email, &u.PasswdHash, &u.Name, &phone, &u.CreatedAt, &fcm,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -96,9 +93,6 @@ func (r *postgresRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*Us
 	}
 	if phone.Valid {
 		u.Phone = phone.String
-	}
-	if gender.Valid {
-		u.Gender = gender.String
 	}
 	if fcm.Valid {
 		u.FCMToken = fcm.String

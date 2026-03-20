@@ -45,7 +45,6 @@ func (s *authService) Signup(ctx context.Context, req SignupRequest) (*User, str
 		PasswdHash: string(hashedPassword),
 		Name:       req.Name,
 		Phone:      req.Phone,
-		Gender:     req.Gender,
 	}
 
 	err = s.repo.CreateUser(ctx, user)
