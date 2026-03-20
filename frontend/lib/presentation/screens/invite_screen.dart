@@ -129,7 +129,7 @@ class _InviteScreenState extends State<InviteScreen> {
                   title: Text(phone.number, style: const TextStyle(color: Colors.white)),
                   subtitle: Text(
                     phone.label.toString().split('.').last.toUpperCase(),
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 10),
+                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
                   ),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -257,7 +257,7 @@ void _onContactSelected(Contact contact, String rawPhone) {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: KizunaTheme.accentCyan.withValues(alpha: 0.05),
+                color: KizunaTheme.accentCyan.withOpacity(0.05),
               ),
             ),
           ),
@@ -275,7 +275,7 @@ void _onContactSelected(Contact contact, String rawPhone) {
                   const SizedBox(height: 8),
                   Text(
                     'Search for someone on Kizuna or invite them to join you.',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4), height: 1.5),
+                    style: TextStyle(color: Colors.white.withOpacity(0.4), height: 1.5),
                   ),
                   const SizedBox(height: 40),
                   GlassContainer(
@@ -360,8 +360,8 @@ void _onContactSelected(Contact contact, String rawPhone) {
               height: 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00E676).withValues(alpha: 0.1),
-                border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.3)),
+                color: const Color(0xFF00E676).withOpacity(0.1),
+                border: Border.all(color: const Color(0xFF00E676).withOpacity(0.3)),
               ),
               child: const Icon(Icons.check_circle_outline, color: Color(0xFF00E676), size: 32),
             ),
@@ -377,14 +377,14 @@ void _onContactSelected(Contact contact, String rawPhone) {
                 _emailController.text.isNotEmpty ? _emailController.text : _phoneController.text,
                 style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: Colors.white.withOpacity(0.3),
                     fontStyle: FontStyle.italic),
               ),
             ],
             const SizedBox(height: 8),
             Text(
               'Send them a friend request to start building your trust ledger together.',
-              style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)),
+              style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4)),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -408,8 +408,8 @@ void _onContactSelected(Contact contact, String rawPhone) {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: KizunaTheme.primaryBlue.withValues(alpha: 0.1),
-              border: Border.all(color: KizunaTheme.primaryBlue.withValues(alpha: 0.3)),
+              color: KizunaTheme.primaryBlue.withOpacity(0.1),
+              border: Border.all(color: KizunaTheme.primaryBlue.withOpacity(0.3)),
             ),
             child: Icon(Icons.person_add_alt_1, color: KizunaTheme.primaryBlue, size: 32),
           ),
@@ -425,14 +425,14 @@ void _onContactSelected(Contact contact, String rawPhone) {
               _emailController.text.isNotEmpty ? _emailController.text : _phoneController.text,
               style: TextStyle(
                   fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.3),
+                  color: Colors.white.withOpacity(0.3),
                   fontStyle: FontStyle.italic),
             ),
           ],
           const SizedBox(height: 8),
           Text(
             'Share an invite link via WhatsApp or other apps so they can join you.',
-            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.4)),
+            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.4)),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),

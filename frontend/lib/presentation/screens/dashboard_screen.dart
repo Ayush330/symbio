@@ -181,7 +181,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: heartColor.withValues(alpha: _glowAnim.value),
+                          color: heartColor.withOpacity(_glowAnim.value),
                           blurRadius: 25,
                           spreadRadius: 6,
                         ),
@@ -199,7 +199,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
                     end: Alignment.bottomRight,
                     colors: [
                       heartColor,
-                      heartColor.withValues(alpha: 0.7),
+                      heartColor.withOpacity(0.7),
                     ],
                   ).createShader(bounds),
                   child: const Icon(
@@ -220,7 +220,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white10),
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: Colors.white.withOpacity(0.1),
                     ),
                     child: const Icon(Icons.info_outline, size: 14, color: Colors.white70),
                   ),
@@ -236,9 +236,9 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: heartColor.withValues(alpha: 0.15),
+                color: heartColor.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: heartColor.withValues(alpha: 0.2)),
+                border: Border.all(color: heartColor.withOpacity(0.2)),
               ),
               child: Text(
                 status,
@@ -258,7 +258,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
                 fontSize: 9,
                 letterSpacing: 1.2,
                 fontWeight: FontWeight.w900,
-                color: Colors.white.withValues(alpha: 0.5),
+                color: Colors.white.withOpacity(0.5),
               ),
             ),
           ],
@@ -282,7 +282,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: KizunaTheme.primaryBlue.withValues(alpha: 0.1),
+                color: KizunaTheme.primaryBlue.withOpacity(0.1),
               ),
               child: Icon(Icons.auto_awesome_outlined, color: KizunaTheme.primaryBlue, size: 20),
             ),
@@ -367,7 +367,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (net >= 0 ? Colors.green : Colors.red).withValues(alpha: 0.1),
+                  color: (net >= 0 ? Colors.green : Colors.red).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -395,7 +395,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(label, style: TextStyle(fontSize: 10, color: color.withValues(alpha: 0.5), fontWeight: FontWeight.bold, letterSpacing: 1)),
+        Text(label, style: TextStyle(fontSize: 10, color: color.withOpacity(0.5), fontWeight: FontWeight.bold, letterSpacing: 1)),
         const SizedBox(height: 4),
         Text(
           value.toString(),
@@ -409,9 +409,9 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: KizunaTheme.primaryBlue.withValues(alpha: 0.05),
+        color: KizunaTheme.primaryBlue.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: KizunaTheme.primaryBlue.withValues(alpha: 0.1)),
+        border: Border.all(color: KizunaTheme.primaryBlue.withOpacity(0.1)),
       ),
       child: Row(
         children: [
@@ -449,7 +449,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: KizunaTheme.primaryBlue.withValues(alpha: 0.15),
+                  color: KizunaTheme.primaryBlue.withOpacity(0.15),
                 ),
                 child: Icon(icon, color: KizunaTheme.primaryBlue, size: 22),
               ),
@@ -607,7 +607,7 @@ class _KizunaDashboardBackground extends StatelessWidget {
           gradient: RadialGradient(
             center: alignment,
             colors: [
-              color.withValues(alpha: opacity),
+              color.withOpacity(opacity),
               Colors.transparent,
             ],
             radius: 1.2,

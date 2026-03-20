@@ -79,7 +79,7 @@ class _AddFavourScreenState extends State<AddFavourScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
-                  auraColor.withValues(alpha: 0.1),
+                  auraColor.withOpacity(0.1),
                   Colors.transparent,
                 ]),
               ),
@@ -172,10 +172,10 @@ class _AddFavourScreenState extends State<AddFavourScreen> {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isSelected ? auraColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.03),
+                  color: isSelected ? auraColor.withOpacity(0.2) : Colors.white.withOpacity(0.03),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? auraColor.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+                    color: isSelected ? auraColor.withOpacity(0.5) : Colors.white.withOpacity(0.05),
                     width: isSelected ? 1.5 : 1,
                   ),
                 ),
@@ -208,15 +208,15 @@ class _AddFavourScreenState extends State<AddFavourScreen> {
         const SizedBox(height: 16),
         Stack(
           children: [
-            Container(height: 10, width: double.infinity, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(5))),
+            Container(height: 10, width: double.infinity, decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(5))),
             AnimatedContainer(
               duration: const Duration(milliseconds: 500),
               height: 10,
               width: (MediaQuery.of(context).size.width - 48) * (_intensity100 / 100),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color.withValues(alpha: 0.5), color]),
+                gradient: LinearGradient(colors: [color.withOpacity(0.5), color]),
                 borderRadius: BorderRadius.circular(5),
-                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10, spreadRadius: 1)],
+                boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, spreadRadius: 1)],
               ),
             ),
           ],
@@ -225,9 +225,9 @@ class _AddFavourScreenState extends State<AddFavourScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.05),
+            color: color.withOpacity(0.05),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.1)),
+            border: Border.all(color: color.withOpacity(0.1)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

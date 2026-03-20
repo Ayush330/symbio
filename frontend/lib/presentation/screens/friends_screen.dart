@@ -218,8 +218,8 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               height: 48,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: KizunaTheme.accentCyan.withValues(alpha: 0.1),
-                border: Border.all(color: KizunaTheme.accentCyan.withValues(alpha: 0.3)),
+                color: KizunaTheme.accentCyan.withOpacity(0.1),
+                border: Border.all(color: KizunaTheme.accentCyan.withOpacity(0.3)),
               ),
               child: Center(
                 child: Text(
@@ -249,7 +249,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                     'Wants to connect',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.5),
+                      color: Colors.white.withOpacity(0.5),
                     ),
                   ),
                 ],
@@ -325,7 +325,7 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
                       friend['email'] ?? '',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: Colors.white.withOpacity(0.3),
                       ),
                     ),
                   ],
@@ -335,9 +335,9 @@ class _FriendsScreenState extends State<FriendsScreen> with TickerProviderStateM
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: healthColor.withValues(alpha: 0.1),
+                  color: healthColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: healthColor.withValues(alpha: 0.3)),
+                  border: Border.all(color: healthColor.withOpacity(0.3)),
                 ),
                 child: Text(
                   karma.toStringAsFixed(0),

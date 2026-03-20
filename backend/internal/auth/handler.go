@@ -51,6 +51,12 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate mandatory fields
+	if req.Email == "" || req.Password == "" || req.Name == "" || req.Phone == "" || req.Gender == "" {
+		transport.SendError(w, http.StatusBadRequest, "All fields are mandatory: Email, Password, Name, Phone, Gender")
+		return
+	}
+
 	user, token, err := h.Service.Signup(r.Context(), req)
 	if err != nil {
 		if err == ErrUserDuplicate {

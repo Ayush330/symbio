@@ -32,7 +32,7 @@ class ErrorDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.redAccent.withValues(alpha: 0.1),
+              color: Colors.redAccent.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),

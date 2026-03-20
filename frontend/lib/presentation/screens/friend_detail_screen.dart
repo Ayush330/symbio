@@ -80,7 +80,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       const Color(0xFF0F0F1E),
-                      KizunaTheme.primaryBlue.withValues(alpha: 0.05),
+                      KizunaTheme.primaryBlue.withOpacity(0.05),
                       const Color(0xFF0F0F1E),
                     ],
                   ),
@@ -144,7 +144,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
               size: 80,
               shadows: [
                 Shadow(
-                  color: KizunaTheme.getKarmaColor(currentHealth).withValues(alpha: 0.5),
+                  color: KizunaTheme.getKarmaColor(currentHealth).withOpacity(0.5),
                   blurRadius: 40,
                 ),
               ],
@@ -165,7 +165,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                 fontSize: 12,
                 letterSpacing: 4,
                 fontWeight: FontWeight.bold,
-                color: Colors.white.withValues(alpha: 0.4),
+                color: Colors.white.withOpacity(0.4),
               ),
             ),
             const SizedBox(height: 32),
@@ -211,7 +211,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
           const SizedBox(height: 8),
           Text(
             'Start a commitment to see your timeline grow.',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.15), fontSize: 12),
+            style: TextStyle(color: Colors.white.withOpacity(0.15), fontSize: 12),
           ),
         ],
       ),
@@ -239,7 +239,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
             ),
             child: GlassContainer(
               padding: const EdgeInsets.all(16),
-              borderColor: baseColor.withValues(alpha: opacity),
+              borderColor: baseColor.withOpacity(opacity),
               child: Row(
                 children: [
                   Expanded(
@@ -253,7 +253,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                         const SizedBox(height: 4),
                         Text(
                           '${f['category']?.toUpperCase() ?? 'OTHER'} • ${f['created_at'].toString().substring(0, 10)}',
-                          style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1),
+                          style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.4), letterSpacing: 1),
                         ),
                       ],
                     ),
@@ -262,7 +262,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
                   Text(
                     '${isGiven ? "+" : "-"}$points',
                     style: TextStyle(
-                      color: baseColor.withValues(alpha: opacity),
+                      color: baseColor.withOpacity(opacity),
                       fontWeight: FontWeight.w900,
                       fontSize: 18,
                     ),

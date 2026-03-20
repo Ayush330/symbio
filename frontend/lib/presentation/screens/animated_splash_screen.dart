@@ -98,7 +98,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 colors: [
-                  KizunaTheme.primaryBlue.withValues(alpha: 0.03),
+                  KizunaTheme.primaryBlue.withOpacity(0.03),
                   Colors.transparent,
                 ],
                 radius: 1.5,
@@ -132,7 +132,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: KizunaTheme.primaryBlue.withValues(alpha: 0.1),
+                            color: KizunaTheme.primaryBlue.withOpacity(0.1),
                             blurRadius: 20,
                             spreadRadius: 4,
                           ),
@@ -162,13 +162,13 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                     Text(
                       'KIZUNA',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: Colors.white.withOpacity(0.9),
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 12,
                         shadows: [
                           Shadow(
-                            color: KizunaTheme.primaryBlue.withValues(alpha: 0.5),
+                            color: KizunaTheme.primaryBlue.withOpacity(0.5),
                             blurRadius: 10,
                           ),
                         ],
@@ -178,7 +178,7 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen> with Single
                     Container(
                       width: 40,
                       height: 1,
-                      color: KizunaTheme.primaryBlue.withValues(alpha: 0.3),
+                      color: KizunaTheme.primaryBlue.withOpacity(0.3),
                     ),
                   ],
                 ),

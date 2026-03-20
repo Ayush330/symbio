@@ -79,10 +79,10 @@ class _KizunaButtonState extends State<KizunaButton> with SingleTickerProviderSt
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  border: widget.outline ? Border.all(color: effectiveGradient.first.withValues(alpha: 0.5), width: 1.5) : null,
+                  border: widget.outline ? Border.all(color: effectiveGradient.first.withOpacity(0.5), width: 1.5) : null,
                   boxShadow: widget.outline ? null : [
                     BoxShadow(
-                      color: effectiveGradient.last.withValues(alpha: 0.3),
+                      color: effectiveGradient.last.withOpacity(0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
