@@ -21,7 +21,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       await context.read<AuthRepository>().forgotPassword(_emailController.text);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reset link logged to server console')),
+          const SnackBar(content: Text('Recovery instructions sent to your email!')),
         );
         Navigator.push(
           context,
@@ -54,7 +54,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Enter your email to receive a recovery token. The token will be logged to your server console.',
+              'Enter your email to receive a secure recovery token. Please check your inbox (and spam folder) for the 6-digit code or link.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: 48),

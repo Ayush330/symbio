@@ -169,8 +169,8 @@ func (s *authService) ForgotPassword(ctx context.Context, req ForgotPasswordRequ
 		to := []string{user.Email}
 
 		subject := "Subject: Symbio - Reset Your Password\r\n"
-		body := fmt.Sprintf("Hi %s,\r\n\r\nYou requested a password reset for Symbio.\r\nClick the link below to securely reset your password:\r\n\r\n%s\r\n\r\nThis link will expire in 15 minutes.\r\n", 
-			user.Name, resetLink)
+		body := fmt.Sprintf("Hi %s,\r\n\r\nYou requested a password reset for Symbio.\r\n\r\nYour Recovery Token is:\r\n%s\r\n\r\nYou can either copy-paste this token into the app, or click the link below to securely reset your password:\r\n%s\r\n\r\nThis token will expire in 15 minutes.\r\n", 
+			user.Name, token, resetLink)
 
 		msg := []byte(subject + "\r\n" + body)
 
