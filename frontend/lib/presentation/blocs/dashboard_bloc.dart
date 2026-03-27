@@ -138,7 +138,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       if (type == 'commitment_requested') {
         final newPending = List.from(state.pendingActions)..add(payload);
         emit(state.copyWith(pendingActions: newPending));
-      } else if (type == 'commitment_accepted' || type == 'favour_created' || type == 'commitment_denied' || type == 'data_refresh') {
+      } else if (type == 'favour_created') {
+        final newPending = List.from(state.pendingActions)..add({
+          'type': 'favour',
+          'data': payload,
+        });
+        emit(state.copyWith(pendingActions: newPending));
+        add(LoadDashboardStats());
+      } else if (type == 'commitment_accepted' || type == 'commitment_denied' || type == 'data_refresh') {
         // Trigger a full stats refresh for any major change
         add(LoadDashboardStats());
         

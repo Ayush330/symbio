@@ -108,14 +108,25 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
           const RepaintBoundary(
             child: _KizunaDashboardBackground(),
           ),
-          BlocListener<DashboardBloc, DashboardState>(
-            listener: (context, state) {
-              if (state.pendingActions.isNotEmpty) {
-                _showHandshakeNotification(context, state.pendingActions.last);
-              }
-              // Keep display name in sync with BLoC stats
-              _syncDisplayNameState(state);
-            },
+          MultiBlocListener(
+            listeners: [
+              BlocListener<DashboardBloc, DashboardState>(
+                listenWhen: (previous, current) {
+                  if (current.pendingActions.isEmpty) return false;
+                  if (previous.pendingActions.isEmpty) return true;
+                  return previous.pendingActions.last != current.pendingActions.last;
+                },
+                listener: (context, state) {
+                  _showHandshakeNotification(context, state.pendingActions.last);
+                },
+              ),
+              BlocListener<DashboardBloc, DashboardState>(
+                listener: (context, state) {
+                  // Keep display name in sync with BLoC stats
+                  _syncDisplayNameState(state);
+                },
+              ),
+            ],
             child: BlocBuilder<DashboardBloc, DashboardState>(
               builder: (context, state) {
                 final stats = state.stats;
@@ -430,11 +441,15 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
 
   void _showHandshakeNotification(BuildContext context, dynamic action) {
     final bool isFriendRequest = action is Map && action['type'] == 'friend_request';
-    final String title = isFriendRequest ? 'FRIEND REQUEST' : 'DOUBLE HANDSHAKE';
+    final bool isFavour = action is Map && action['type'] == 'favour';
+    
+    final String title = isFriendRequest ? 'FRIEND REQUEST' : (isFavour ? 'NEW FAVOUR' : 'DOUBLE HANDSHAKE');
     final String message = isFriendRequest 
         ? '${action['data']?['initiator_name'] ?? 'Someone'} wants to connect.'
-        : '${action['entity_name'] ?? 'New Commitment'} proposal received.';
-    final IconData icon = isFriendRequest ? Icons.person_add_outlined : Icons.handshake_outlined;
+        : isFavour 
+            ? '${action['data']?['initiator_name'] ?? 'Someone'} did a favour for you!'
+            : '${action['entity_name'] ?? 'New Commitment'} proposal received.';
+    final IconData icon = isFriendRequest ? Icons.person_add_outlined : (isFavour ? Icons.volunteer_activism : Icons.handshake_outlined);
 
     ScaffoldMessenger.of(context).showMaterialBanner(
       MaterialBanner(
@@ -471,32 +486,34 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
           ),
         ),
         actions: [
+          if (!isFavour)
+            TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                context.read<DashboardBloc>().add(DismissPendingAction(action));
+                if (isFriendRequest) {
+                   // Forward to Friends tab or handled by screen navigation
+                } else {
+                  final commitmentId = action['id'] ?? action['data']?['id'];
+                  if (commitmentId != null) {
+                    context.read<DashboardBloc>().add(AcceptCommitment(commitmentId));
+                  }
+                }
+              },
+              child: Text(isFriendRequest ? 'VIEW' : 'ACCEPT', style: TextStyle(color: KizunaTheme.primaryBlue, fontWeight: FontWeight.bold)),
+            ),
           TextButton(
             onPressed: () {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
               context.read<DashboardBloc>().add(DismissPendingAction(action));
-              if (isFriendRequest) {
-                 // Forward to Friends tab or handled by screen navigation
-                 // For now, just hide is fine as it's already in the list
-              } else {
+              if (!isFriendRequest && !isFavour) {
                 final commitmentId = action['id'] ?? action['data']?['id'];
                 if (commitmentId != null) {
-                  context.read<DashboardBloc>().add(AcceptCommitment(commitmentId));
+                  context.read<DashboardBloc>().add(DenyCommitment(commitmentId));
                 }
               }
             },
-            child: Text(isFriendRequest ? 'VIEW' : 'ACCEPT', style: TextStyle(color: KizunaTheme.primaryBlue, fontWeight: FontWeight.bold)),
-          ),
-          TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-              context.read<DashboardBloc>().add(DismissPendingAction(action));
-              final commitmentId = action['id'] ?? action['data']?['id'];
-              if (commitmentId != null && !isFriendRequest) {
-                context.read<DashboardBloc>().add(DenyCommitment(commitmentId));
-              }
-            },
-            child: Text(isFriendRequest ? 'DISMISS' : 'DECLINE', style: const TextStyle(color: Colors.redAccent)),
+            child: Text(isFavour ? 'DISMISS' : (isFriendRequest ? 'DISMISS' : 'DECLINE'), style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),

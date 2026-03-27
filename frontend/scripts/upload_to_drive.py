@@ -12,30 +12,49 @@ from googleapiclient.http import MediaFileUpload
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
+from google.auth.exceptions import RefreshError
+
 def get_credentials():
     creds = None
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    token_path = os.path.join(script_dir, 'token.json')
+    client_secrets_path = os.path.join(script_dir, 'client_secrets.json')
+
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists('token.json'):
-        with open('token.json', 'rb') as token:
+    if os.path.exists(token_path):
+        with open(token_path, 'rb') as token:
             creds = pickle.load(token)
     
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except RefreshError:
+                print("⚠️ Refresh token expired or revoked. Re-authenticating...")
+                if os.path.exists(token_path):
+                    os.remove(token_path)
+                
+                if not os.path.exists(client_secrets_path):
+                    print("❌ Error: client_secrets.json not found in " + script_dir)
+                    print("💡 Download your Desktop OAuth Client ID JSON from Google Cloud Console.")
+                    sys.exit(1)
+                
+                flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
+                creds = flow.run_local_server(port=8080)
         else:
-            if not os.path.exists('client_secrets.json'):
-                print("❌ Error: client_secrets.json not found.")
+            if not os.path.exists(client_secrets_path):
+                print("❌ Error: client_secrets.json not found in " + script_dir)
                 print("💡 Download your Desktop OAuth Client ID JSON from Google Cloud Console.")
                 sys.exit(1)
             
-            flow = InstalledAppFlow.from_client_secrets_file('client_secrets.json', SCOPES)
-            creds = flow.run_local_server(port=0)
+            flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
+            creds = flow.run_local_server(port=8080)
         
         # Save the credentials for the next run
-        with open('token.json', 'wb') as token:
+        with open(token_path, 'wb') as token:
             pickle.dump(creds, token)
     
     return creds

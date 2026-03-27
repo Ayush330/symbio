@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/smtp"
 	"os"
 	"time"
 
@@ -145,12 +146,48 @@ func (s *authService) ForgotPassword(ctx context.Context, req ForgotPasswordRequ
 		return err
 	}
 
-	// In a real app, send email. For now, log it.
-	fmt.Printf("\n--- PASSWORD RESET REQUEST ---\n")
-	fmt.Printf("User: %s (ID: %s)\n", user.Email, user.ID)
-	fmt.Printf("Token: %s\n", token)
-	fmt.Printf("Link: http://localhost:8080/reset-password?token=%s\n", token)
-	fmt.Printf("------------------------------\n\n")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPass := os.Getenv("SMTP_PASS")
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:8080"
+	}
+
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
+
+	// Send real email if SMTP is configured
+	if smtpHost != "" && smtpUser != "" && smtpPass != "" {
+		if smtpPort == "" {
+			smtpPort = "587"
+		}
+		
+		auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
+		from := smtpUser
+		to := []string{user.Email}
+
+		subject := "Subject: Symbio - Reset Your Password\r\n"
+		body := fmt.Sprintf("Hi %s,\r\n\r\nYou requested a password reset for Symbio.\r\nClick the link below to securely reset your password:\r\n\r\n%s\r\n\r\nThis link will expire in 15 minutes.\r\n", 
+			user.Name, resetLink)
+
+		msg := []byte(subject + "\r\n" + body)
+
+		err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, msg)
+		if err != nil {
+			fmt.Printf("Failed to send reset email to %s: %v\n", user.Email, err)
+		} else {
+			fmt.Printf("Reset email successfully sent to %s\n", user.Email)
+		}
+	} else {
+		// Fallback: In local dev without SMTP, just log it
+		fmt.Printf("\n--- PASSWORD RESET REQUEST ---\n")
+		fmt.Printf("User: %s (ID: %s)\n", user.Email, user.ID)
+		fmt.Printf("Token: %s\n", token)
+		fmt.Printf("Link: %s\n", resetLink)
+		fmt.Printf("------------------------------\n\n")
+	}
 
 	return nil
 }
