@@ -20,7 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLogin = true;
-  bool _isLogin = true;
 
   String _cleanPhoneNumber(String phone) {
     final trimmed = phone.trim();

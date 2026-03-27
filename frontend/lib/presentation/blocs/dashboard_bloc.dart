@@ -35,6 +35,11 @@ class DenyCommitment extends DashboardEvent {
   DenyCommitment(this.commitmentId);
 }
 
+class DismissPendingAction extends DashboardEvent {
+  final dynamic action;
+  DismissPendingAction(this.action);
+}
+
 // States
 class DashboardState extends Equatable {
   final double reciprocityScore;
@@ -199,6 +204,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       } catch (e) {
         print('DEBUG: Error denying commitment: $e');
       }
+    });
+
+    on<DismissPendingAction>((event, emit) {
+      final newPending = List.from(state.pendingActions)..removeWhere((a) {
+        if (a is Map && event.action is Map) {
+          if (a['type'] == 'friend_request' && event.action['type'] == 'friend_request') {
+             return a['data']?['rel_id'] == event.action['data']?['rel_id'];
+          } else {
+             final id1 = a['id'] ?? a['data']?['id'];
+             final id2 = event.action['id'] ?? event.action['data']?['id'];
+             return id1 == id2 && id1 != null;
+          }
+        }
+        return a == event.action;
+      });
+      emit(state.copyWith(pendingActions: newPending));
     });
 
     on<StopRealTimeUpdates>((event, emit) {

@@ -171,12 +171,14 @@ class _FriendDetailScreenState extends State<FriendDetailScreen> {
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: () => _showCreateFavourPortal(),
-              icon: const Icon(Icons.add, color: Colors.black),
-              label: const Text('CREATE FAVOUR'),
+              icon: const Icon(Icons.add, color: Colors.black, size: 16),
+              label: const Text('CREATE FAVOUR', style: TextStyle(fontSize: 12)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: KizunaTheme.primaryBlue,
                 foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                minimumSize: const Size(0, 36),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],

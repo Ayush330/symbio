@@ -474,6 +474,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
           TextButton(
             onPressed: () {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              context.read<DashboardBloc>().add(DismissPendingAction(action));
               if (isFriendRequest) {
                  // Forward to Friends tab or handled by screen navigation
                  // For now, just hide is fine as it's already in the list
@@ -489,6 +490,7 @@ class _KizunaDashboardState extends State<KizunaDashboard> with TickerProviderSt
           TextButton(
             onPressed: () {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              context.read<DashboardBloc>().add(DismissPendingAction(action));
               final commitmentId = action['id'] ?? action['data']?['id'];
               if (commitmentId != null && !isFriendRequest) {
                 context.read<DashboardBloc>().add(DenyCommitment(commitmentId));
